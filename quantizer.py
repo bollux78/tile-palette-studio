@@ -196,7 +196,7 @@ def _floyd_steinberg(rgb: np.ndarray, valid: np.ndarray, pix_palette: np.ndarray
     """
     h, w = valid.shape
     pal = (palettes.astype(np.float32) * 34.0).tolist()
-    start = 1 if transparent else 0
+    start = 1  # color index 0 is never opaque on the Mega Drive
     curr = np.zeros((w+2, 3), dtype=np.float32)
     nxt = np.zeros_like(curr)
     for y in range(h):
@@ -303,7 +303,7 @@ def quantize(image: Image.Image, config: Settings,
     coarse = np.sqrt(coarse, out=coarse)
     seed = np.random.default_rng(config.seed)
     assignments = _seed_groups(coarse, config.palettes, seed)
-    zero_reserved = True  # fixed shared slot 0, available to opaque pixels too
+    zero_reserved = True  # Mega Drive: palette index 0 is always transparent on planes
     history: list[float] = []
     palettes = np.zeros((config.palettes, config.colors, 3), dtype=np.uint8)
     update(14, 'Otimizando paletas compartilhadas entre tiles…')
@@ -316,7 +316,7 @@ def quantize(image: Image.Image, config: Settings,
             palettes[p] = _fit_palette(h, config.colors, zero, seed, zero_reserved)
         costs = np.empty((512, config.palettes), np.float32)
         for p in range(config.palettes):
-            costs[:, p] = _distance(all_colors, palettes[p, 1:] if config.transparent else palettes[p]).min(axis=1)
+            costs[:, p] = _distance(all_colors, palettes[p, 1:]).min(axis=1)
         tile_err = hist @ costs
         # Avoid arbitrary thrash of identical tiles by stable argmin.
         new_assignments = np.argmin(tile_err, axis=1).astype(np.int16)
@@ -362,8 +362,7 @@ def quantize(image: Image.Image, config: Settings,
                 if pattern is None or config.dither_strength <= 0:
                     dif = original[:, None, :] - colors[None, :, :].astype(np.float32)
                     dist = np.sum(dif*dif*np.array([2,4,1],np.float32),axis=2)
-                    if config.transparent:
-                        dist[:,0] = np.inf
+                    dist[:,0] = np.inf
                     chosen = np.argmin(dist,axis=1).astype(np.uint8)
                 else:
                     # Rilden's iterative candidate generation in linear (squared RGB)
@@ -379,8 +378,7 @@ def quantize(image: Image.Image, config: Settings,
                         sample = np.sqrt(np.clip(linear+error*config.dither_strength,0,65025))
                         diff = sample[:,None,:]-colors[None,:,:].astype(np.float32)
                         distance = np.sum(diff*diff*np.array([2,4,1],np.float32),axis=2)
-                        if config.transparent:
-                            distance[:,0] = np.inf
+                        distance[:,0] = np.inf
                         candidate = np.argmin(distance,axis=1).astype(np.uint8)
                         choices.append(candidate)
                         brightnesses.append(np.sum(palette_linear[candidate]*bright_weights,axis=1))
