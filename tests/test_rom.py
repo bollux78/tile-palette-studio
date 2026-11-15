@@ -1,4 +1,5 @@
 import unittest
+import struct
 from types import SimpleNamespace
 import numpy as np
 from rom_test import build_test_rom, _vdp_cmd
@@ -22,10 +23,30 @@ class RomTest(unittest.TestCase):
         self.assertEqual(int.from_bytes(rom[4:8],'big'),0x200)
         self.assertEqual(rom[0x100:0x104],b'SEGA')
         self.assertLess(info['tiles'],1536)
+        self.assertEqual(int.from_bytes(rom[:4],'big'),0x00ffff00)
+        self.assertIn(b'SEGA',rom[0x200:0x300])
+        self.assert_valid_loops(rom)
+    def assert_valid_loops(self,rom):
+        # Every DBRA D0 must branch to an instruction start, not the middle
+        # of the preceding MOVE.W or its address extension.
+        code=rom[0x200:0x600]
+        seen=0
+        for offset in range(0,len(code)-4,2):
+            if code[offset:offset+2] != bytes.fromhex('51c8'):
+                continue
+            disp=struct.unpack('>h',code[offset+2:offset+4])[0]
+            target=offset+2+disp
+            self.assertGreaterEqual(target,0)
+            self.assertIn(code[target:target+2],
+                          (bytes.fromhex('33d8'),bytes.fromhex('33fc')))
+            seen+=1
+        self.assertEqual(seen,5)
+
     def test_h32(self):
         rom,info=build_test_rom(self.make_result(256))
         self.assertEqual(len(rom),131072)
         self.assertEqual(info['width'],256)
+        self.assert_valid_loops(rom)
     def test_invalid_dimensions(self):
         obj=self.make_result(320)
         obj.source_size=(320,240)
