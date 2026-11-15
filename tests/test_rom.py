@@ -47,6 +47,35 @@ class RomTest(unittest.TestCase):
         self.assertEqual(len(rom),131072)
         self.assertEqual(info['width'],256)
         self.assert_valid_loops(rom)
+    def test_rom_uses_unmodified_tiles_and_identity_tilemap(self):
+        obj=self.make_result(320)
+        obj.indices[:8,:8]=3
+        obj.indices[:8,8:16]=2
+        obj.tile_palettes[0,0]=1
+        obj.tile_palettes[0,1]=2
+        rom,info=build_test_rom(obj)
+        self.assertEqual(info['tiles'],1120)
+        pointers=[]
+        pos=0x200
+        while True:
+            pos=rom.find(bytes.fromhex('41f9'),pos,0x600)
+            if pos<0:break
+            pointers.append(int.from_bytes(rom[pos+2:pos+6],'big'))
+            pos+=6
+        self.assertEqual(len(pointers),3)
+        tiles_start,map_start,_=pointers
+        self.assertEqual(rom[tiles_start:tiles_start+32],bytes([0x33])*32)
+        self.assertEqual(rom[tiles_start+32:tiles_start+64],bytes([0x22])*32)
+        self.assertEqual(int.from_bytes(rom[map_start:map_start+2],'big'),0x2000)
+        self.assertEqual(int.from_bytes(rom[map_start+2:map_start+4],'big'),0x4001)
+        self.assertEqual(int.from_bytes(rom[map_start+128:map_start+130],'big'),40)
+
+    def test_h32_rom_keeps_all_896_tiles(self):
+        obj=self.make_result(256)
+        obj.settings.allow_lossy_tiles=True  # flag has no effect on a test ROM
+        _,info=build_test_rom(obj)
+        self.assertEqual(info['tiles'],896)
+
     def test_invalid_dimensions(self):
         obj=self.make_result(320)
         obj.source_size=(320,240)
