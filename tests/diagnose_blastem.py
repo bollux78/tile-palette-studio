@@ -55,6 +55,25 @@ for y in range(ty):
         render[y*8:y*8+8,x*8:x*8+8,2]=((colors>>9)&7)*34
 preview=np.asarray(result.preview.convert('RGB'))
 difference=np.abs(render.astype(np.int16)-preview.astype(np.int16))
+
+# Mega Drive plane A treats palette index 0 as transparent independently of
+# whether the source image requested transparency. Plane B has a cleared
+# name table whose entries all refer to tile index 0. The ROM currently
+# writes real image pixels into that tile, so "transparent" foreground
+# pixels reveal copies of the image's first tile in plane B.
+zero_mask = result.indices[:height,:width] == 0
+Image.fromarray((zero_mask.astype(np.uint8)*255),'L').save(out/'index0_mask.png')
+tile_zero = tiles[0]
+background_codes = cram[0][tile_zero]
+background=np.empty((8,8,3),dtype=np.uint8)
+background[:,:,0]=((background_codes>>1)&7)*34
+background[:,:,1]=((background_codes>>5)&7)*34
+background[:,:,2]=((background_codes>>9)&7)*34
+tiled_background=np.tile(background,(height//8,width//8,1))
+predicted=render.copy()
+predicted[zero_mask]=tiled_background[zero_mask]
+Image.fromarray(predicted).save(out/'predicted_with_planeB_tile0.png')
+
 Image.fromarray(render).save(out/'decoded_rom.png')
 Image.fromarray(np.clip(difference*3,0,255).astype(np.uint8)).save(out/'diff_x3.png')
 mismatch=int(np.any(difference!=0,axis=2).sum())
@@ -69,6 +88,9 @@ report={
     'map_bytes':len(map_raw),
     'nonzero_pixels_different_rom_vs_preview':mismatch,
     'max_abs_pixel_difference':int(difference.max()),
+    'image_pixels_with_palette_index0_transparent_on_hardware':int(zero_mask.sum()),
+    'palette_index0_fraction':float(zero_mask.mean()),
+    'pattern0_unique_colors':int(len(np.unique(tiles[0]))),
     'pixel_exact_ROM_data_vs_Python_preview':bool(exact),
     'rom_sprites_table_reg5':hex(0xF000),
     'planeA_base_reg2':hex(0xC000),
