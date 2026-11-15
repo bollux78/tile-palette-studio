@@ -432,7 +432,7 @@ def export(result: Result, destination: str | Path, prefix: str = 'art') -> list
     ntiles = ty * tx
     from tile_optimizer import optimize
     available = min(settings.vram_budget_tiles, 2048-settings.base_tile)
-    optimized = optimize(result.indices, result.tile_palettes, budget=available, allow_lossy=getattr(settings, 'allow_lossy_tiles', False))
+    optimized = optimize(result.indices, result.tile_palettes, budget=available, allow_lossy=getattr(settings, 'allow_lossy_tiles', False), palettes_rgb=result.palettes_rgb)
     unique_count = optimized['unique_count']
     limits = vram_usage(result.source_size[0], result.source_size[1],
                         settings.base_tile, settings.vram_budget_tiles)
