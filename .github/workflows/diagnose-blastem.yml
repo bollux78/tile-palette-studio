@@ -1,0 +1,90 @@
+name: Reproduce ROM in BlastEm
+on:
+  push:
+    branches: [diagnostics-blastem]
+    paths: [.github/workflows/diagnose-blastem.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python dependencies
+        run: python -m pip install numpy pillow
+      - name: Generate ROM and verify raw VDP data against quantizer output
+        continue-on-error: true
+        run: |
+          mkdir -p diagnostics
+          python tests/diagnose_blastem.py > diagnostics/rom_audit.log 2>&1
+          cat diagnostics/rom_audit.log
+      - name: Install BlastEm and virtual X display
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blastem xvfb imagemagick x11-utils xdotool
+          command -v blastem
+          blastem -h > diagnostics/blastem_help.txt 2>&1 || true
+      - name: Launch ROM in BlastEm and capture screen
+        continue-on-error: true
+        run: |
+          if [ ! -f diagnostics/valentina_test.bin ]; then
+            echo "ROM generation failed" > diagnostics/launch_status.txt
+            exit 0
+          fi
+          if ! command -v blastem >/dev/null; then
+            echo "BlastEm installation unavailable" > diagnostics/launch_status.txt
+            exit 0
+          fi
+          timeout 35s xvfb-run -a -s '-screen 0 1280x800x24' bash -c '
+            export SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1
+            blastem diagnostics/valentina_test.bin 640 448 > diagnostics/blastem.log 2>&1 &
+            pid=$!
+            sleep 15
+            xwininfo -root -tree > diagnostics/xwindow_tree.txt 2>&1 || true
+            import -window root -silent diagnostics/blastem_screen.png 2>diagnostics/screenshot_error.txt || true
+            kill "$pid" >/dev/null 2>&1 || true
+            wait "$pid" >/dev/null 2>&1 || true
+          ' || true
+          ls -lh diagnostics
+      - name: Summarize captured screen
+        continue-on-error: true
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import json
+          p=Path('diagnostics/blastem_screen.png')
+          if not p.exists():
+              Path('diagnostics/screen_report.json').write_text('{"screenshot": "not captured"}')
+          else:
+              im=Image.open(p).convert('RGB')
+              quant=im.quantize(colors=64)
+              info={'screenshot_size':list(im.size),'colors_approx':len(quant.getcolors() or []),
+                    'screenshot_center_rgb':im.getpixel((im.width//2,im.height//2))}
+              Path('diagnostics/screen_report.json').write_text(json.dumps(info,indent=2))
+              print(info)
+          PY
+      - name: Save evidence in diagnostics branch
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f diagnostics/
+          if ! git diff --cached --quiet; then
+            git commit -m "Capture BlastEm and ROM audit evidence [skip ci]"
+            git push origin "HEAD:diagnostics-blastem"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blastem-rom-diagnostics
+          path: diagnostics/
+          if-no-files-found: warn
