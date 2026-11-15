@@ -54,7 +54,7 @@ _BAYER4 = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]
 _BAYER8 = np.kron(_BAYER4, np.ones((2, 2), np.float32)) * 4 + np.tile(_BAYER2, (4, 4))
 # Exact 2x2 ordering matrices from rilden/tiledpalettequant worker.js (MIT).
 _VERTICAL2 = np.array([[0, 1]], dtype=np.float32)
-_VERTICAL4 = np.array([[0, 2, 1, 3]], dtype=np.float32)
+_VERTICAL4 = np.array([[0, 1], [3, 2]], dtype=np.float32)
 
 
 def _rgb_from_hex(color: str) -> np.ndarray:
