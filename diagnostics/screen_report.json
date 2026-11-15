@@ -1,1 +1,12 @@
-{"screenshot": "not captured"}
+{
+  "screenshot_size": [
+    1280,
+    800
+  ],
+  "colors_approx": 5,
+  "screenshot_center_rgb": [
+    0,
+    0,
+    0
+  ]
+}

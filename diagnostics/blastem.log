@@ -1,0 +1,3 @@
+Failed to set vsync to off: That operation is not supported
+XIO:  fatal IO error 4 (Interrupted system call) on X server ":99"
+      after 268 requests (51 known processed) with 0 events remaining.

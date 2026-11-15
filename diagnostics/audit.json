@@ -1,0 +1,22 @@
+{
+  "ROM_file_size": 131072,
+  "image_size": [
+    320,
+    224
+  ],
+  "positions": 1120,
+  "palette_count": 4,
+  "source_addresses": [
+    818,
+    36658,
+    40754
+  ],
+  "tile_bytes": 35840,
+  "map_bytes": 4096,
+  "nonzero_pixels_different_rom_vs_preview": 0,
+  "max_abs_pixel_difference": 0,
+  "pixel_exact_ROM_data_vs_Python_preview": true,
+  "rom_sprites_table_reg5": "0xf000",
+  "planeA_base_reg2": "0xc000",
+  "notes": "ROM decoded independently from stored 4bpp tiles, attributes and CRAM"
+}
