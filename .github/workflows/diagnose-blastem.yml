@@ -2,7 +2,7 @@ name: Reproduce ROM in BlastEm
 on:
   push:
     branches: [diagnostics-blastem]
-    paths: [.github/workflows/diagnose-blastem.yml]
+    paths: [.github/workflows/diagnose-blastem.yml, tests/diagnose_blastem.py]
   workflow_dispatch:
 permissions:
   contents: write
