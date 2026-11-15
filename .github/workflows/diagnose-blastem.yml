@@ -53,7 +53,8 @@ jobs:
               info=$(xdotool search --name "BlastEm Info" 2>/dev/null | head -n1 || true)
               if [ -n "$info" ]; then
                 xdotool windowfocus "$info" 2>/dev/null || true
-                xdotool key Return
+                xdotool key Return || true
+                xdotool mousemove --sync 640 325 click 1 || true
                 sleep 2
               else
                 break
