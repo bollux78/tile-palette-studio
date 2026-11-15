@@ -48,6 +48,7 @@ viewports.forEach(view=>{
   },{passive:false});
 });
 $('strength').oninput=()=>$('strengthlabel').textContent=$('strength').value;
+$('iterations').oninput=()=>$('iterationslabel').textContent=$('iterations').value;
 function setDims(w,h){adjusting=true;$('width').value=w;$('height').value=h;adjusting=false}
 $('width').onchange=()=>{if(adjusting||!origW)return;const w=Number($('width').value);if($('ratio').checked)setDims(w,Math.max(1,Math.round(w*origH/origW)))};
 $('height').onchange=()=>{if(adjusting||!origH)return;const h=Number($('height').value);if($('ratio').checked)setDims(Math.max(1,Math.round(h*origW/origH)),h)};
