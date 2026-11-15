@@ -45,9 +45,21 @@ jobs:
           fi
           timeout 35s xvfb-run -a -s '-screen 0 1280x800x24' bash -c '
             export SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1
-            blastem diagnostics/valentina_test.bin 640 448 > diagnostics/blastem.log 2>&1 &
+            blastem -g diagnostics/valentina_test.bin 640 448 > diagnostics/blastem.log 2>&1 &
             pid=$!
-            sleep 15
+            sleep 3
+            # BlastEm can display an informational VSync dialog under Xvfb.
+            for step in 1 2 3 4; do
+              info=$(xdotool search --name "BlastEm Info" 2>/dev/null | head -n1 || true)
+              if [ -n "$info" ]; then
+                xdotool windowfocus "$info" 2>/dev/null || true
+                xdotool key Return
+                sleep 2
+              else
+                break
+              fi
+            done
+            sleep 8
             xwininfo -root -tree > diagnostics/xwindow_tree.txt 2>&1 || true
             import -window root -silent diagnostics/blastem_screen.png 2>diagnostics/screenshot_error.txt || true
             kill "$pid" >/dev/null 2>&1 || true
