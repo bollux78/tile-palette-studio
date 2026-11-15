@@ -5,19 +5,21 @@
     224
   ],
   "positions": 1120,
+  "reserved_blank_tile0": true,
+  "first_tilemap_index": 1,
   "palette_count": 4,
   "source_addresses": [
     818,
-    36658,
-    40754
+    36690,
+    40786
   ],
-  "tile_bytes": 35840,
+  "tile_bytes": 35872,
   "map_bytes": 4096,
   "nonzero_pixels_different_rom_vs_preview": 0,
   "max_abs_pixel_difference": 0,
-  "image_pixels_with_palette_index0_transparent_on_hardware": 2303,
-  "palette_index0_fraction": 0.03212890625,
-  "pattern0_unique_colors": 12,
+  "image_pixels_with_palette_index0_transparent_on_hardware": 0,
+  "palette_index0_fraction": 0.0,
+  "pattern0_unique_colors": 1,
   "pixel_exact_ROM_data_vs_Python_preview": true,
   "rom_sprites_table_reg5": "0xf000",
   "planeA_base_reg2": "0xc000",

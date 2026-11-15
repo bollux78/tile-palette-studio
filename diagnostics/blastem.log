@@ -1,3 +1,17 @@
 Failed to set vsync to off: That operation is not supported
-XIO:  fatal IO error 4 (Interrupted system call) on X server ":99"
-      after 268 requests (51 known processed) with 0 events remaining.
+Suppressed headless VSync popup: Failed to set vsync to off: That operation is not supported
+
+width: 640, height: 448
+Window created with size: 640 x 448
+Using 512x512 textures
+config says: 512
+Initialized audio at frequency 48000 with a 1024 sample buffer, 32-bit float format
+Added 21 game controller mappings from gamecontrollerdb.txt
+Product ID: 00000000
+SHA1: 07bdec0b5996dbb82f8b81b4f8268b6e87d4413f
+Not found in ROM DB, examining header
+
+IO port 1 connected to gamepad #1 with type '6-button gamepad'
+IO port 2 connected to gamepad #2 with type '6-button gamepad'
+IO port EXT connected to device 'None'
+

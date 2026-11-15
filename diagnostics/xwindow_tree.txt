@@ -3,7 +3,6 @@ xwininfo: Window id: 0x21f (the root window) (has no name)
 
   Root window id: 0x21f (the root window) (has no name)
   Parent window id: 0x0 (none)
-     2 children:
-     0x600002 "BlastEm Info": ()  502x153+389+215  +389+215
-     0x200007 "BlastEm": ("blastem" "blastem")  640x448+320+176  +320+176
+     1 child:
+     0x200007 "TILE PALETTE STUDIO TEST IMAGE - BlastEm - 60.2 fps": ("blastem" "blastem")  640x448+320+176  +320+176
 
