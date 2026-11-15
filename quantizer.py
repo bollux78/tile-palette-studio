@@ -53,8 +53,8 @@ _BAYER2 = np.array([[0, 2], [3, 1]], dtype=np.float32)
 _BAYER4 = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]], dtype=np.float32)
 _BAYER8 = np.kron(_BAYER4, np.ones((2, 2), np.float32)) * 4 + np.tile(_BAYER2, (4, 4))
 # Exact 2x2 ordering matrices from rilden/tiledpalettequant worker.js (MIT).
-_VERTICAL2 = np.array([[0, 0], [1, 1]], dtype=np.float32)
-_VERTICAL4 = np.array([[0, 1], [3, 2]], dtype=np.float32)
+_VERTICAL2 = np.array([[0, 1]], dtype=np.float32)
+_VERTICAL4 = np.array([[0, 2, 1, 3]], dtype=np.float32)
 
 
 def _rgb_from_hex(color: str) -> np.ndarray:
@@ -332,11 +332,11 @@ def quantize(image: Image.Image, config: Settings,
     pattern = {'bayer2': _BAYER2, 'bayer4': _BAYER4, 'bayer8': _BAYER8,
                'vertical2': _VERTICAL2, 'vertical4': _VERTICAL4}.get(config.dither)
     if pattern is not None and config.dither_strength > 0:
-        n = pattern.shape[0]
+        rows, cols = pattern.shape
         yy, xx = np.indices((ph, pw))
-        # Vertical2 is a two-level threshold pattern; Vertical4 uses four levels.
-        levels = 2 if config.dither == "vertical2" else n*n
-        offsets = (pattern[yy % n, xx % n] + 0.5) / levels - 0.5
+        # Vertical patterns are column-only; Bayer patterns use both axes.
+        levels = pattern.size
+        offsets = (pattern[yy % rows, xx % cols] + 0.5) / levels - 0.5
         rgbfloat = np.clip(rgbfloat + offsets[..., None] * 68 * config.dither_strength, 0, 255)
     indices = np.zeros((ph, pw), np.uint8)
     preview_arr = np.zeros((ph, pw, 4), np.uint8)
