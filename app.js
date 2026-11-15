@@ -5,18 +5,48 @@ const basename=s=>s.replace(/\.[^.]+$/,'').replace(/[^\w-]/g,'_')||'art';
 function dataUrl(bytes,type='image/png'){const b=new Blob([bytes],{type});return URL.createObjectURL(b)}
 function setImg(id,url){const img=$(id);if(img.dataset.url?.startsWith('blob:'))URL.revokeObjectURL(img.dataset.url);img.src=url;img.dataset.url=url;applyZoom()}
 function applyZoom(){const z=Number($('zoom').value);$('zoomlabel').textContent=z+'×';for(const id of ['before','after']){const im=$(id);im.style.width=im.dataset.w?Number(im.dataset.w)*z+'px':'auto';im.style.height=im.dataset.h?Number(im.dataset.h)*z+'px':'auto';const view=im.closest('.viewport');if(view){const imageHeight=Number(im.dataset.h)||224;view.style.height=Math.min(imageHeight*z,Math.max(240,Math.floor(window.innerHeight*.70)))+'px'}}}
-$('zoom').oninput=applyZoom;
-window.addEventListener('resize',applyZoom);
-document.querySelectorAll('.viewport').forEach(view=>view.addEventListener('wheel',e=>{
-  e.preventDefault();
-  const slider=$('zoom'), previous=Number(slider.value), next=Math.max(Number(slider.min),Math.min(Number(slider.max),previous+(e.deltaY<0?1:-1)));
+// Both previews show the same image coordinates when zooming or panning.
+const viewports=[...document.querySelectorAll('.viewport')];
+let syncingScroll=false,previousZoom=Number($('zoom').value);
+function syncViewport(origin){
+  if(syncingScroll)return;
+  syncingScroll=true;
+  const maxX=Math.max(0,origin.scrollWidth-origin.clientWidth);
+  const maxY=Math.max(0,origin.scrollHeight-origin.clientHeight);
+  const rx=maxX?origin.scrollLeft/maxX:0,ry=maxY?origin.scrollTop/maxY:0;
+  for(const other of viewports){
+    if(other===origin)continue;
+    other.scrollLeft=rx*Math.max(0,other.scrollWidth-other.clientWidth);
+    other.scrollTop=ry*Math.max(0,other.scrollHeight-other.clientHeight);
+  }
+  requestAnimationFrame(()=>{syncingScroll=false});
+}
+function changeZoom(next,origin=viewports[0],anchorX=origin.clientWidth/2,anchorY=origin.clientHeight/2){
+  const previous=previousZoom;
+  next=Math.max(Number($('zoom').min),Math.min(Number($('zoom').max),next));
   if(next===previous)return;
-  const rect=view.getBoundingClientRect();
-  const x=e.clientX-rect.left+view.scrollLeft,y=e.clientY-rect.top+view.scrollTop;
-  slider.value=String(next);applyZoom();
-  view.scrollLeft=x*next/previous-(e.clientX-rect.left);
-  view.scrollTop=y*next/previous-(e.clientY-rect.top);
-},{passive:false}));
+  const x=origin.scrollLeft+anchorX,y=origin.scrollTop+anchorY;
+  $('zoom').value=String(next);
+  applyZoom();
+  previousZoom=next;
+  origin.scrollLeft=x*next/previous-anchorX;
+  origin.scrollTop=y*next/previous-anchorY;
+  syncViewport(origin);
+}
+$('zoom').oninput=()=>{
+  const next=Number($('zoom').value);
+  $('zoom').value=String(previousZoom);
+  changeZoom(next);
+};
+window.addEventListener('resize',()=>{applyZoom();syncViewport(viewports[0])});
+viewports.forEach(view=>{
+  view.addEventListener('scroll',()=>syncViewport(view),{passive:true});
+  view.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const rect=view.getBoundingClientRect();
+    changeZoom(previousZoom+(e.deltaY<0?1:-1),view,e.clientX-rect.left,e.clientY-rect.top);
+  },{passive:false});
+});
 $('strength').oninput=()=>$('strengthlabel').textContent=$('strength').value;
 function setDims(w,h){adjusting=true;$('width').value=w;$('height').value=h;adjusting=false}
 $('width').onchange=()=>{if(adjusting||!origW)return;const w=Number($('width').value);if($('ratio').checked)setDims(w,Math.max(1,Math.round(w*origH/origW)))};
