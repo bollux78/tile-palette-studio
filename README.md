@@ -41,11 +41,17 @@ O código de quantização e otimização deste repositório é uma implementaç
 
 **Site do aplicativo:** https://bollux78.github.io/tile-palette-studio/
 
+## Precisão das cores do VDP
+
+No Mega Drive, o índice de cor **0** em um tile de plano é transparente, independentemente do conteúdo de sua entrada na CRAM. Por isso o quantizador agora reserva automaticamente a entrada 0: cada paleta possui até **15 cores opacas**, mais o índice transparente. A opção de canal alfa controla apenas se pixels transparentes da imagem original devem ser mantidos.
+
+A ROM de teste reserva o **tile gráfico 0 totalmente vazio** e carrega o primeiro tile da imagem no índice 1, impedindo que o plano B mostre fragmentos do primeiro tile através dos pixels transparentes. Essa correção foi testada com a imagem de exemplo em ROM H40, incluindo comparação de dados da ROM com a prévia e execução no BlastEm em runner GitHub Actions.
+
 ## ROM de teste Mega Drive (.bin) — experimental
 
 O botão **Gerar ROM de teste Mega Drive (.bin)** cria no próprio navegador uma ROM de 128 KiB com programa 68000 mínimo: inicialização do VDP, carregamento dos tiles 4bpp, plano A e quatro paletas CRAM. A imagem é estática; não há controles, som, menus ou animações.
 
-A ROM de teste grava **cada tile 8×8 na posição original, sem deduplicação, espelhamentos ou substituições por similaridade**, para reproduzir a prévia quantizada sem artefatos de mapeamento. A otimização de tiles continua disponível separadamente na exportação SGDK.
+A ROM de teste grava **cada tile 8×8 na posição original, a partir do índice gráfico 1, sem deduplicação, espelhamentos ou substituições por similaridade**, para reproduzir a prévia quantizada sem artefatos de mapeamento. A otimização de tiles continua disponível separadamente na exportação SGDK.
 
 **Primeira versão:** aceita H32 256×224 e H40 320×224. O gerador reserva a VRAM a partir de 0xC000 para o tilemap, permitindo até 1536 tiles únicos. Não usa o tile inicial configurado para exportação SGDK, pois a ROM independente carrega os tiles a partir do índice zero. Se exceder o limite, é necessário habilitar a redução por similaridade ou ajustar a imagem.
 
