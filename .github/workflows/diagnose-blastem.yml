@@ -43,9 +43,28 @@ jobs:
             echo "BlastEm installation unavailable" > diagnostics/launch_status.txt
             exit 0
           fi
+          # Ignore only the non-fatal VSync information popup in headless Xvfb.
+          # The SDL error is still written to stderr for evidence.
+          cat > diagnostics/suppress_vsync.c <<'C'
+          #define _GNU_SOURCE
+          #include <dlfcn.h>
+          #include <stdio.h>
+          #include <string.h>
+          int SDL_ShowSimpleMessageBox(unsigned int flags, const char *title,
+                                       const char *msg, void *window) {
+            if (msg && strstr(msg, "Failed to set vsync")) {
+              fprintf(stderr, "Suppressed headless VSync popup: %s\n", msg);
+              return 0;
+            }
+            int (*real_fn)(unsigned int,const char*,const char*,void*) =
+              dlsym(RTLD_NEXT, "SDL_ShowSimpleMessageBox");
+            return real_fn ? real_fn(flags,title,msg,window) : 0;
+          }
+          C
+          gcc -shared -fPIC -o diagnostics/suppress_vsync.so diagnostics/suppress_vsync.c -ldl
           timeout 35s xvfb-run -a -s '-screen 0 1280x800x24' bash -c '
             export SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1
-            blastem -g diagnostics/valentina_test.bin 640 448 > diagnostics/blastem.log 2>&1 &
+            LD_PRELOAD="$PWD/diagnostics/suppress_vsync.so" blastem -g diagnostics/valentina_test.bin 640 448 > diagnostics/blastem.log 2>&1 &
             pid=$!
             sleep 3
             # BlastEm can display an informational VSync dialog under Xvfb.
@@ -93,6 +112,8 @@ jobs:
           git add -f diagnostics/
           if ! git diff --cached --quiet; then
             git commit -m "Capture BlastEm and ROM audit evidence [skip ci]"
+            git fetch origin diagnostics-blastem
+            git rebase origin/diagnostics-blastem
             git push origin "HEAD:diagnostics-blastem"
           fi
       - uses: actions/upload-artifact@v4
