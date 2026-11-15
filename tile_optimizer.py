@@ -46,25 +46,27 @@ def optimize(indices, tile_palettes, budget=None, allow_lossy=False):
         # tile, evaluating all four flips. Deterministic, quality-first within
         # a least-used tier; no arbitrary color changes to the palette.
         while len(active) > budget:
-            best = None
+            selected = None
             for i in sorted(active, key=lambda k:(counts[k],k)):
                 candidates = [j for j in active if j != i and representatives[j] == representatives[i]]
                 if not candidates:
                     continue
+                # Bound browser CPU: compare with the 48 most frequent candidates.
+                candidates.sort(key=lambda j:(-counts[j],j))
+                best = None
                 tile = unique[i].astype(np.int16)
-                for j in candidates:
+                for j in candidates[:48]:
                     for variant, flag in _variants(unique[j]):
                         d = int(np.sum((tile-variant.astype(np.int16))**2))
-                        score = (d * max(1,int(counts[i])), d, i, j, flag)
+                        score = (d, -int(counts[j]), j, flag)
                         if best is None or score < best[0]:
-                            best = (score,i,j,flag)
-                if best is not None and best[0][0] == 0:
+                            best = (score,j,flag)
+                if best is not None:
+                    selected = (i,best[1],best[2])
                     break
-            if best is None:
+            if selected is None:
                 break
-            _,i,j,flag = best
-            # Mapping flags represent transforms of stored canonical tiles.
-            # Compose flips by XOR; H and V commute.
+            i,j,flag = selected
             for k in range(len(mapping)):
                 if mapping[k] == i:
                     mapping[k] = j
