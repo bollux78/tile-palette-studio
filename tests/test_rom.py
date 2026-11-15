@@ -54,7 +54,7 @@ class RomTest(unittest.TestCase):
         obj.tile_palettes[0,0]=1
         obj.tile_palettes[0,1]=2
         rom,info=build_test_rom(obj)
-        self.assertEqual(info['tiles'],1120)
+        self.assertEqual(info['tiles'],1121)
         pointers=[]
         pos=0x200
         while True:
@@ -64,17 +64,27 @@ class RomTest(unittest.TestCase):
             pos+=6
         self.assertEqual(len(pointers),3)
         tiles_start,map_start,_=pointers
-        self.assertEqual(rom[tiles_start:tiles_start+32],bytes([0x33])*32)
-        self.assertEqual(rom[tiles_start+32:tiles_start+64],bytes([0x22])*32)
-        self.assertEqual(int.from_bytes(rom[map_start:map_start+2],'big'),0x2000)
-        self.assertEqual(int.from_bytes(rom[map_start+2:map_start+4],'big'),0x4001)
-        self.assertEqual(int.from_bytes(rom[map_start+128:map_start+130],'big'),40)
+        self.assertEqual(rom[tiles_start:tiles_start+32],bytes(32))
+        self.assertEqual(rom[tiles_start+32:tiles_start+64],bytes([0x33])*32)
+        self.assertEqual(rom[tiles_start+64:tiles_start+96],bytes([0x22])*32)
+        self.assertEqual(int.from_bytes(rom[map_start:map_start+2],'big'),0x2001)
+        self.assertEqual(int.from_bytes(rom[map_start+2:map_start+4],'big'),0x4002)
+        self.assertEqual(int.from_bytes(rom[map_start+128:map_start+130],'big'),41)
 
     def test_h32_rom_keeps_all_896_tiles(self):
         obj=self.make_result(256)
         obj.settings.allow_lossy_tiles=True  # flag has no effect on a test ROM
         _,info=build_test_rom(obj)
-        self.assertEqual(info['tiles'],896)
+        self.assertEqual(info['tiles'],897)
+
+    def test_opaque_quantization_never_uses_transparent_index_zero(self):
+        from PIL import Image
+        from quantizer import Settings,quantize
+        img=Image.new('RGB',(16,16),(70,112,158))
+        res=quantize(img,Settings(palettes=2,colors=16,iterations=1,dither='vertical4'))
+        self.assertTrue(np.all(res.indices>0))
+        res_floyd=quantize(img,Settings(palettes=2,colors=16,iterations=1,dither='floyd'))
+        self.assertTrue(np.all(res_floyd.indices>0))
 
     def test_invalid_dimensions(self):
         obj=self.make_result(320)
