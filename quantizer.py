@@ -21,7 +21,7 @@ class Settings:
     colors: int = 16
     tile_size: int = 8
     iterations: int = 10
-    dither: str = "off"  # off, bayer2/4/8, vertical2/4, floyd
+    dither: str = "off"  # off or six Rilden patterns
     dither_strength: float = 0.35
     transparent: bool = False
     alpha_threshold: int = 128
@@ -53,8 +53,16 @@ _BAYER2 = np.array([[0, 2], [3, 1]], dtype=np.float32)
 _BAYER4 = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]], dtype=np.float32)
 _BAYER8 = np.kron(_BAYER4, np.ones((2, 2), np.float32)) * 4 + np.tile(_BAYER2, (4, 4))
 # Exact 2x2 ordering matrices from rilden/tiledpalettequant worker.js (MIT).
-_VERTICAL2 = np.array([[0, 1]], dtype=np.float32)
-_VERTICAL4 = np.array([[0, 1], [3, 2]], dtype=np.float32)
+_RILDEN_PATTERNS = {
+    'diagonal4': np.array([[0, 2], [3, 1]], dtype=np.uint8),
+    'horizontal4': np.array([[0, 3], [1, 2]], dtype=np.uint8),
+    'vertical4': np.array([[0, 1], [3, 2]], dtype=np.uint8),
+    'diagonal2': np.array([[0, 1], [1, 0]], dtype=np.uint8),
+    'horizontal2': np.array([[0, 1], [0, 1]], dtype=np.uint8),
+    'vertical2': np.array([[0, 0], [1, 1]], dtype=np.uint8),
+}
+# Matrices above are indexed [x,y], as in rilden/tiledpalettequant worker.js (MIT).
+
 
 
 def _rgb_from_hex(color: str) -> np.ndarray:
@@ -250,7 +258,7 @@ def quantize(image: Image.Image, config: Settings,
         raise ValueError('Iterações: 1 a 40')
     if not 0 <= config.dither_strength <= 1:
         raise ValueError('Dithering: intensidade de 0 a 1')
-    if config.dither not in ('off', 'bayer2', 'bayer4', 'bayer8', 'vertical2', 'vertical4', 'floyd'):
+    if config.dither not in ('off', 'diagonal4', 'horizontal4', 'vertical4', 'diagonal2', 'horizontal2', 'vertical2'):
         raise ValueError('Padrão de dithering inválido')
 
     def update(percent: int, msg: str):
@@ -329,42 +337,57 @@ def quantize(image: Image.Image, config: Settings,
     update(85, 'Aplicando cores finais e dithering…')
     pix_palette = assignments[tile_ids]
     rgbfloat = rgb.astype(np.float32)
-    pattern = {'bayer2': _BAYER2, 'bayer4': _BAYER4, 'bayer8': _BAYER8,
-               'vertical2': _VERTICAL2, 'vertical4': _VERTICAL4}.get(config.dither)
-    if pattern is not None and config.dither_strength > 0:
-        rows, cols = pattern.shape
-        yy, xx = np.indices((ph, pw))
-        # Vertical patterns are column-only; Bayer patterns use both axes.
-        levels = pattern.size
-        offsets = (pattern[yy % rows, xx % cols] + 0.5) / levels - 0.5
-        rgbfloat = np.clip(rgbfloat + offsets[..., None] * 68 * config.dither_strength, 0, 255)
+    pattern = _RILDEN_PATTERNS.get(config.dither)
     indices = np.zeros((ph, pw), np.uint8)
     preview_arr = np.zeros((ph, pw, 4), np.uint8)
     preview_arr[..., 3] = 255
     if config.transparent:
         preview_arr[~valid, 3] = 0
-    if config.dither == "floyd":
-        _floyd_steinberg(rgb, valid, pix_palette, palettes, config.transparent,
-                         config.dither_strength, indices, preview_arr)
-    else:
-        for p in range(config.palettes):
-            mask = valid & (pix_palette == p)
-            coords = np.flatnonzero(mask)
-            if not len(coords):
-                continue
-            cols = np.rint(palettes[p].astype(np.float32) * 34).astype(np.uint8)
-            # Chunk the matching to control peak memory for large images.
-            src_flat = rgbfloat.reshape(-1, 3)
-            ind_flat = indices.reshape(-1)
-            dst_flat = preview_arr.reshape(-1, 4)
-            for ch in np.array_split(coords, max(1, (len(coords)+65535)//65536)):
-                dif = (src_flat[ch, None, :] - cols[None, :, :].astype(np.float32))
-                dist = np.sum(dif * dif * _WEIGHT, axis=2)
+    for p in range(config.palettes):
+        mask = valid & (pix_palette == p)
+        coords = np.flatnonzero(mask)
+        if not len(coords):
+            continue
+        colors = np.rint(palettes[p].astype(np.float32) * 34).astype(np.uint8)
+        src_flat = rgbfloat.reshape(-1, 3)
+        ind_flat = indices.reshape(-1)
+        dst_flat = preview_arr.reshape(-1, 4)
+        for ch in np.array_split(coords, max(1, (len(coords)+4095)//4096)):
+            original = src_flat[ch]
+            if pattern is None or config.dither_strength <= 0:
+                dif = original[:, None, :] - colors[None, :, :].astype(np.float32)
+                dist = np.sum(dif*dif*np.array([2,4,1],np.float32),axis=2)
                 if config.transparent:
-                    dist[:, 0] = np.inf  # opaque pixels must never map to transparent index 0
-                chosen = np.argmin(dist, axis=1).astype(np.uint8)
-                ind_flat[ch] = chosen
-                dst_flat[ch, :3] = cols[chosen]
+                    dist[:,0] = np.inf
+                chosen = np.argmin(dist,axis=1).astype(np.uint8)
+            else:
+                # Rilden's iterative candidate generation in linear (squared RGB)
+                # space; sorted by brightness and selected via pattern[x][y].
+                n = 2 if config.dither.endswith('2') else 4
+                linear = original*original
+                error = np.zeros_like(linear)
+                choices = []
+                brightnesses = []
+                bright_weights = np.array([.299,.587,.114],np.float32)
+                palette_linear = colors.astype(np.float32)**2
+                for k in range(n):
+                    sample = np.sqrt(np.clip(linear+error*config.dither_strength,0,65025))
+                    diff = sample[:,None,:]-colors[None,:,:].astype(np.float32)
+                    distance = np.sum(diff*diff*np.array([2,4,1],np.float32),axis=2)
+                    if config.transparent:
+                        distance[:,0] = np.inf
+                    candidate = np.argmin(distance,axis=1).astype(np.uint8)
+                    choices.append(candidate)
+                    brightnesses.append(np.sum(palette_linear[candidate]*bright_weights,axis=1))
+                    error += linear-palette_linear[candidate]
+                order = np.argsort(np.stack(brightnesses,axis=1),axis=1,kind='stable')
+                ordered = np.take_along_axis(np.stack(choices,axis=1),order,axis=1)
+                x = ch % pw
+                y = ch // pw
+                rank = pattern[x%2,y%2]
+                chosen = ordered[np.arange(len(ch)),rank]
+            ind_flat[ch] = chosen
+            dst_flat[ch,:3] = colors[chosen]
     # Outside the source rectangle, map to color zero for clean tile padding.
     preview = Image.fromarray(preview_arr[:height, :width], 'RGBA')
     # RGB error on visible, opaque pixels (reconstruction compared with original)
