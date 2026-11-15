@@ -74,10 +74,10 @@ def build_test_rom(result):
         # MOVE.W #(number_of_words-1),D0
         word(0x303c);word(length//2-1)
         # MOVE.W (A0)+,$C00000
+        loop_start = len(code)
         word(0x33d8);long(0x00c00000)
-        # DBRA word displacement is relative to DBRA opcode + 2 (not + 4).
-        # The 6-byte MOVE.W above starts 8 bytes before that point.
-        word(0x51c8);word(0xfff8)
+        # DBRA displacement is relative to opcode + 2.
+        word(0x51c8);word(loop_start-len(code))
     # Interrupts masked. Unlock TMSS on Mega Drive models with security HW.
     # MOVE.B $A10001,D0 ; ANDI.B #15,D0 ; BEQ.S +10
     # MOVE.L #$53454741,$A14000 ("SEGA")
