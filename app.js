@@ -4,8 +4,9 @@ const status=(s,kind='')=>{$('status').textContent=s;$('status').className='stat
 const basename=s=>s.replace(/\.[^.]+$/,'').replace(/[^\w-]/g,'_')||'art';
 function dataUrl(bytes,type='image/png'){const b=new Blob([bytes],{type});return URL.createObjectURL(b)}
 function setImg(id,url){const img=$(id);if(img.dataset.url?.startsWith('blob:'))URL.revokeObjectURL(img.dataset.url);img.src=url;img.dataset.url=url;applyZoom()}
-function applyZoom(){const z=Number($('zoom').value);$('zoomlabel').textContent=z+'×';for(const id of ['before','after']){const im=$(id);im.style.width=im.dataset.w?Number(im.dataset.w)*z+'px':'auto';im.style.height=im.dataset.h?Number(im.dataset.h)*z+'px':'auto'}}
+function applyZoom(){const z=Number($('zoom').value);$('zoomlabel').textContent=z+'×';for(const id of ['before','after']){const im=$(id);im.style.width=im.dataset.w?Number(im.dataset.w)*z+'px':'auto';im.style.height=im.dataset.h?Number(im.dataset.h)*z+'px':'auto';const view=im.closest('.viewport');if(view){const imageHeight=Number(im.dataset.h)||224;view.style.height=Math.min(imageHeight*z,Math.max(240,Math.floor(window.innerHeight*.70)))+'px'}}}
 $('zoom').oninput=applyZoom;
+window.addEventListener('resize',applyZoom);
 document.querySelectorAll('.viewport').forEach(view=>view.addEventListener('wheel',e=>{
   e.preventDefault();
   const slider=$('zoom'), previous=Number(slider.value), next=Math.max(Number(slider.min),Math.min(Number(slider.max),previous+(e.deltaY<0?1:-1)));
