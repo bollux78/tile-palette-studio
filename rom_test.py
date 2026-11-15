@@ -36,8 +36,8 @@ def build_test_rom(result):
     # at 0xC000 (1536 4bpp tiles). Preserve each tile exactly and
     # avoid deduplication, flips and approximate replacement.
     count = ty * tx
-    if count > TILE_LIMIT:
-        raise ValueError('Imagem excede o espaço de tiles da ROM de teste.')
+    if count + 1 > TILE_LIMIT:
+        raise ValueError('Imagem excede o espaço de tiles da ROM de teste (tile zero reservado).')
     if result.indices.shape != (ty*8,tx*8):
         raise ValueError('Índices de pixels incompatíveis com o tilemap.')
     if not np.issubdtype(result.indices.dtype,np.integer):
@@ -45,12 +45,14 @@ def build_test_rom(result):
     if np.any(result.indices > 15) or np.any(result.indices < 0):
         raise ValueError('Índice de cor inválido para tiles 4bpp.')
     tiled = result.indices.reshape(ty,8,tx,8).transpose(0,2,1,3).reshape(count,8,8)
-    packed = ((tiled[:,:,::2] << 4) | tiled[:,:,1::2]).astype(np.uint8).tobytes()
+    # Tile 0 must be blank: an unused plane B references pattern 0, and
+    # VDP color index 0 in plane A is transparent to the underlying plane.
+    packed = bytes(32) + ((tiled[:,:,::2] << 4) | tiled[:,:,1::2]).astype(np.uint8).tobytes()
     # Plane A is 64x32 in H40 or 32x32 in H32. The tile number is
-    # the raster position, with no H/V flip bits; palette is per tile.
+    # the raster position + 1 (tile 0 blank), with no H/V flips.
     stride = 64 if width == 320 else 32
     plane = np.zeros((32,stride),dtype='>u2')
-    attrs = (np.arange(count,dtype=np.uint16) |
+    attrs = (np.arange(1,count+1,dtype=np.uint16) |
              (result.tile_palettes.ravel().astype(np.uint16)<<13))
     plane[:ty,:tx] = attrs.reshape(ty,tx)
     map_bytes = plane.tobytes()
@@ -155,4 +157,4 @@ def build_test_rom(result):
     rom[0x18e:0x190]=_be16(checksum)
     # Minimal sanity check on the hardware's reset-entry vectors.
     assert rom[0:4] == _be32(0x00ffff00) and rom[4:8] == _be32(0x00000200)
-    return bytes(rom), {'tiles':count,'width':width,'height':height,'size':ROM_SIZE}
+    return bytes(rom), {'tiles':count+1,'image_tiles':count,'width':width,'height':height,'size':ROM_SIZE}
