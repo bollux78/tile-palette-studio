@@ -1,24 +1,42 @@
-# Tile Palette Studio Web 1.0
+# Tile Palette Studio — Mega Drive / Genesis
 
-Versão web do Tile Palette Studio Python para GitHub Pages. Usa **Pyodide**, NumPy e Pillow no navegador, preservando o `quantizer.py` original, inclusive os sete métodos de dithering e a exportação SGDK. Não há upload de imagens para servidores.
+### 🎨 [▶️ Abrir Tile Palette Studio Web](https://bollux78.github.io/tile-palette-studio/)
 
-## Publicação
+**[Acessar o aplicativo online](https://bollux78.github.io/tile-palette-studio/)** · Funciona diretamente no navegador, sem instalação.
 
-Envie `index.html`, `app.js` e `quantizer.py` para a raiz da branch `main` do repositório. Em **Settings → Pages**, selecione **Deploy from a branch → main → /(root)**. A URL será `https://bollux78.github.io/tile-palette-studio/`.
+Converta imagens para as limitações gráficas do **Sega Mega Drive / Genesis**, com quantização por tiles de 8 × 8 pixels, até quatro paletas de 16 cores, dithering e exportação de dados para SGDK.
 
-## Formatos
+## Como usar
 
-PNG, BMP, GIF (primeiro quadro), WebP, JPEG e AVIF (quando o navegador e a versão do Pillow suportarem). Exportação PNG e ZIP com os arquivos SGDK. A primeira visita precisa de internet para carregar o Pyodide; o processamento ocorre localmente.
+1. **[Abra o aplicativo](https://bollux78.github.io/tile-palette-studio/)** e use a imagem de exemplo ou carregue a sua.
+2. Escolha uma resolução **H40 (320 × 224/240)** ou **H32 (256 × 224/240)** — ou informe dimensões personalizadas.
+3. Ajuste o redimensionamento (**Lanczos, bicúbico, bilinear ou vizinho mais próximo**), o dithering e as paletas.
+4. Clique em **Quantizar imagem** para comparar original e resultado.
+5. Se precisar reduzir o uso de VRAM, configure o orçamento de tiles e ative opcionalmente a **substituição por similares**.
+6. Baixe o **PNG paletizado** ou exporte o **pacote SGDK (.zip)**.
 
-## Notas
+## Recursos
 
-- Esta é a primeira versão web e deve ser validada com as imagens reais do usuário, comparando com a versão desktop.
-- Imagens muito grandes podem consumir bastante memória e congelar a interface durante a quantização (o processamento ainda ocorre na thread principal).
-- O navegador pode perguntar se deseja substituir um arquivo baixado com o mesmo nome; o Studio não tem permissão para modificar diretamente o arquivo de entrada.
-- A versão web preserva o motor Python, mas não replica ainda todos os controles avançados da interface Tk.
+- **Dithering:** padrões Diagonal 2/4, Horizontal 2/4 e Vertical 2/4 baseados no projeto de Rilden, além de opção desligado.
+- **Otimização de tiles:** reutilização de padrões idênticos e espelhamentos horizontais/verticais sem perda, seguida opcionalmente de redução por similaridade visual.
+- **Exportação SGDK:** tiles 4bpp, tilemap com atributos e flips, paletas CRAM e arquivos auxiliares.
+- **Formatos de entrada:** PNG, BMP, GIF (primeiro quadro), WebP, JPEG e AVIF quando suportado pelo navegador/Pillow.
+- **Privacidade:** a imagem é processada localmente no navegador; não é enviada para um servidor.
+- **Segurança:** o original não é sobrescrito automaticamente.
 
-## Otimização de tiles VRAM (novembro de 2026)
+## Tecnologias e limitações
 
-O exportador agora deduplica automaticamente tiles 8×8 idênticos e espelhados horizontal/verticalmente, escrevendo os bits de flip H/V no tilemap. A contagem de VRAM passa a considerar os tiles gráficos únicos, não todas as posições da imagem. Se ultrapassar o orçamento configurado, a opção **Substituir tiles similares** tenta unir tiles da mesma paleta, com perda visual e prévia atualizada. Se não couber, o tilemap não é exportado. O arquivo `tile_optimizer.py` precisa estar ao lado de `quantizer.py` e `app.js`.
+O processamento usa Python pelo **Pyodide**, com **NumPy** e **Pillow**. A primeira visita exige conexão para carregar essas bibliotecas. Imagens grandes podem consumir muita memória ou deixar a interface lenta.
 
-A aproximação de tiles é uma implementação própria, não uma cópia do Super PNG2MD da OrionSoft. Ainda requer validação com imagens reais e ROM SGDK.
+O total de VRAM realmente disponível depende do jogo e dos recursos que já estejam carregados. A redução por similaridade pode introduzir alterações visuais; confira a prévia e valide os dados em uma ROM antes do uso definitivo.
+
+## Referências
+
+- [Rilden — tiledpalettequant](https://github.com/rilden/tiledpalettequant), referência para os padrões e o método de dithering.
+- [OrionSoft — Super PNG2MD](https://orionsoft.itch.io/super-png2md), referência para a estratégia de otimização e reutilização de tiles.
+
+O código de quantização e otimização deste repositório é uma implementação própria, não uma reprodução integral do Super PNG2MD.
+
+---
+
+**Site do aplicativo:** https://bollux78.github.io/tile-palette-studio/
