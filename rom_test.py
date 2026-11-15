@@ -7,7 +7,6 @@ Only 256x224 (H32) and 320x224 (H40) are supported initially.
 import struct
 import numpy as np
 from quantizer import _genesis_cram_word
-from tile_optimizer import optimize
 
 ROM_SIZE = 128 * 1024
 PLANE_A = 0xC000
@@ -32,21 +31,26 @@ def build_test_rom(result):
     ty, tx = result.tile_palettes.shape
     if ty != 28 or tx != width//8:
         raise ValueError('Dimensões de tilemap incompatíveis com a ROM de teste.')
-    opt = optimize(result.indices, result.tile_palettes,
-                   budget=TILE_LIMIT,
-                   allow_lossy=bool(result.settings.allow_lossy_tiles),
-                   palettes_rgb=result.palettes_rgb)
-    count = opt['unique_count']
-    if count > TILE_LIMIT or not opt['fits_budget']:
-        raise ValueError('Imagem excede 1536 tiles únicos disponíveis antes do tilemap.')
-    if np.max(opt['tiles']) > 15:
+    # The test ROM is a static full-screen image: 320x224 has 1120
+    # positions; 256x224 has 896. Both fit before the plane-A table
+    # at 0xC000 (1536 4bpp tiles). Preserve each tile exactly and
+    # avoid deduplication, flips and approximate replacement.
+    count = ty * tx
+    if count > TILE_LIMIT:
+        raise ValueError('Imagem excede o espaço de tiles da ROM de teste.')
+    if result.indices.shape != (ty*8,tx*8):
+        raise ValueError('Índices de pixels incompatíveis com o tilemap.')
+    if not np.issubdtype(result.indices.dtype,np.integer):
+        raise ValueError('Os índices dos tiles devem ser inteiros.')
+    if np.any(result.indices > 15) or np.any(result.indices < 0):
         raise ValueError('Índice de cor inválido para tiles 4bpp.')
-    packed = ((opt['tiles'][:,:,::2] << 4) | opt['tiles'][:,:,1::2]).astype('u1').tobytes()
-    # Plane A is 64 x 32 in H40, 32 x 32 in H32.
+    tiled = result.indices.reshape(ty,8,tx,8).transpose(0,2,1,3).reshape(count,8,8)
+    packed = ((tiled[:,:,::2] << 4) | tiled[:,:,1::2]).astype(np.uint8).tobytes()
+    # Plane A is 64x32 in H40 or 32x32 in H32. The tile number is
+    # the raster position, with no H/V flip bits; palette is per tile.
     stride = 64 if width == 320 else 32
     plane = np.zeros((32,stride),dtype='>u2')
-    attrs = (opt['mapping'].astype(np.uint16) |
-             opt['flips'].astype(np.uint16) |
+    attrs = (np.arange(count,dtype=np.uint16) |
              (result.tile_palettes.ravel().astype(np.uint16)<<13))
     plane[:ty,:tx] = attrs.reshape(ty,tx)
     map_bytes = plane.tobytes()
