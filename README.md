@@ -16,3 +16,9 @@ PNG, BMP, GIF (primeiro quadro), WebP, JPEG e AVIF (quando o navegador e a vers�
 - Imagens muito grandes podem consumir bastante memória e congelar a interface durante a quantização (o processamento ainda ocorre na thread principal).
 - O navegador pode perguntar se deseja substituir um arquivo baixado com o mesmo nome; o Studio não tem permissão para modificar diretamente o arquivo de entrada.
 - A versão web preserva o motor Python, mas não replica ainda todos os controles avançados da interface Tk.
+
+## Otimização de tiles VRAM (novembro de 2026)
+
+O exportador agora deduplica automaticamente tiles 8×8 idênticos e espelhados horizontal/verticalmente, escrevendo os bits de flip H/V no tilemap. A contagem de VRAM passa a considerar os tiles gráficos únicos, não todas as posições da imagem. Se ultrapassar o orçamento configurado, a opção **Substituir tiles similares** tenta unir tiles da mesma paleta, com perda visual e prévia atualizada. Se não couber, o tilemap não é exportado. O arquivo `tile_optimizer.py` precisa estar ao lado de `quantizer.py` e `app.js`.
+
+A aproximação de tiles é uma implementação própria, não uma cópia do Super PNG2MD da OrionSoft. Ainda requer validação com imagens reais e ROM SGDK.
