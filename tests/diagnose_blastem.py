@@ -29,12 +29,12 @@ for i in range(0,len(code)-6,2):
 if len(pointers)!=3:
     raise RuntimeError(f'Expected 3 LEA source pointers, got {pointers}')
 tiles_start,map_start,cram_start=pointers
-tiles_raw=rom[tiles_start:tiles_start+positions*32]
+tiles_raw=rom[tiles_start:tiles_start+(positions+1)*32]
 map_raw=rom[map_start:map_start+((64 if tx==40 else 32)*32)*2]
 cram_raw=rom[cram_start:cram_start+128]
 # Unpack tile graphics exactly as the 68000 wrote them.
-packed=np.frombuffer(tiles_raw,dtype=np.uint8).reshape(positions,8,4)
-tiles=np.empty((positions,8,8),dtype=np.uint8)
+packed=np.frombuffer(tiles_raw,dtype=np.uint8).reshape(positions+1,8,4)
+tiles=np.empty((positions+1,8,8),dtype=np.uint8)
 tiles[:,:,0::2]=(packed>>4)&15
 tiles[:,:,1::2]=packed&15
 stride=64 if tx==40 else 32
@@ -82,6 +82,8 @@ report={
     'ROM_file_size':len(rom),
     'image_size':[width,height],
     'positions':positions,
+    'reserved_blank_tile0':bool(np.all(tiles[0]==0)),
+    'first_tilemap_index':int(attr[0,0]),
     'palette_count':cfg.palettes,
     'source_addresses':pointers,
     'tile_bytes':len(tiles_raw),
