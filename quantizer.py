@@ -29,6 +29,7 @@ class Settings:
     base_tile: int = 0
     seed: int = 42
     vram_budget_tiles: int = 1024  # User-configurable estimate; actual VRAM usage is game-specific
+    allow_lossy_tiles: bool = False
 
 
 @dataclass
@@ -406,9 +407,13 @@ def export(result: Result, destination: str | Path, prefix: str = 'art') -> list
     height, width = result.indices.shape
     ty, tx = result.tile_palettes.shape
     ntiles = ty * tx
+    from tile_optimizer import optimize
+    available = min(settings.vram_budget_tiles, 2048-settings.base_tile)
+    optimized = optimize(result.indices, result.tile_palettes, budget=available, allow_lossy=getattr(settings, 'allow_lossy_tiles', False))
+    unique_count = optimized['unique_count']
     limits = vram_usage(result.source_size[0], result.source_size[1],
                         settings.base_tile, settings.vram_budget_tiles)
-    fits = limits['fits_vdp']
+    fits = unique_count <= available and settings.base_tile + unique_count <= 2048
     result_files: list[Path] = []
 
     def save_bytes(suffix: str, data: bytes):
@@ -426,11 +431,12 @@ def export(result: Result, destination: str | Path, prefix: str = 'art') -> list
     # 4bpp packed: each row of 8 pixels -> 4 bytes (high nibble = left pixel),
     # 32 bytes per 8x8 tile, raster order. This is the Mega Drive VRAM format.
     tiled = result.indices.reshape(ty, 8, tx, 8).transpose(0, 2, 1, 3).reshape(ntiles, 8, 8)
+    tiled = optimized['tiles']
     packed = ((tiled[:, :, ::2] << 4) | tiled[:, :, 1::2]).astype(np.uint8)
     save_bytes('tiles.4bpp.bin', packed.tobytes())
     palette_ids = result.tile_palettes.ravel()
-    vals = np.arange(ntiles, dtype=np.uint16) + settings.base_tile
-    attrs = ((palette_ids.astype(np.uint16) << 13) | vals).astype('>u2') if fits else None
+    vals = optimized['mapping'].astype(np.uint16) + settings.base_tile
+    attrs = ((palette_ids.astype(np.uint16) << 13) | optimized['flips'] | vals).astype('>u2') if fits else None
     if fits:
         save_bytes('map.attr.be.bin', attrs.tobytes())
     # Pack four 16-color palettes (32 bytes each), regardless of visible count.
@@ -465,7 +471,7 @@ def export(result: Result, destination: str | Path, prefix: str = 'art') -> list
         'source_width': result.source_size[0], 'source_height': result.source_size[1],
         'padded_width': result.padded_size[0], 'padded_height': result.padded_size[1],
         'tile_width': 8, 'tile_height': 8, 'tiles_x': tx, 'tiles_y': ty,
-        'tile_count': ntiles, 'tile_index_base': settings.base_tile,
+        'tile_count': ntiles, 'unique_tile_count': unique_count, 'lossless_unique': optimized['lossless_unique'], 'lossy_merges': optimized['lossy_merges'], 'tile_index_base': settings.base_tile,
         'vram': limits, 'tilemap_exported': fits,
         'palette_count': settings.palettes, 'colors_per_palette': settings.colors,
         'palette_zero_shared_rgb': settings.background,
@@ -474,7 +480,7 @@ def export(result: Result, destination: str | Path, prefix: str = 'art') -> list
         'iterations': settings.iterations, 'weighted_error_history': result.history,
         'rgb_mse': result.mean_squared_error,
         'tiles': '8x8, 4bpp packed, high nibble first, 32 bytes/tile, row-major',
-        'map': '16-bit big-endian: palette bits 14-13, tile index bits 10-0, priority=0, flips=0',
+        'map': '16-bit big-endian: palette bits 14-13, H/V flip bits 11-12, tile index bits 10-0, priority=0',
         'cram': '4 x 16 16-bit big-endian entries, 0x0BGR (R bits 1-3, G bits 5-7, B bits 9-11)',
         'note': 'Not a complete ROM. VRAM available depends on the game. Oversize exports omit map.attr.be.bin to prevent 11-bit tile index overflow. Index zero is common across palettes.'
     }
@@ -527,7 +533,7 @@ PARA USAR NO SGDK:
 
 OBS: PNG com tamanho arbitrário é válido para edição, mas uma imagem maior
 que o plano de vídeo precisa ser dividida/rolada; a VDP não exibe automaticamente
-uma imagem gigante de uma vez. Tiles não são deduplicados nesta versão.
+uma imagem gigante de uma vez. Tiles idênticos e espelhados são deduplicados; substituições aproximadas são opcionais.
 """, encoding='utf-8')
     result_files.append(guide)
     return result_files
