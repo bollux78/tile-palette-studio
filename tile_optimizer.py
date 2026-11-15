@@ -1,91 +1,111 @@
-"""Mega Drive 4bpp tile deduplication, H/V flip reuse and optional lossy merge.
-Operates on palette-local indices. Palette identity is kept in tilemap attributes.
+"""Mega Drive tile optimization: exact deduplication, free H/V flips, then optional
+palette-aware perceptual correlation and budget-limited lossy replacement.
+The approximation is original code inspired by OrionSoft's optimization workflow.
 """
 import numpy as np
 
-def _variants(tile):
-    yield tile, 0
-    yield tile[:, ::-1], 0x0800
-    yield tile[::-1, :], 0x1000
-    yield tile[::-1, ::-1], 0x1800
+FLIPS = (0, 0x0800, 0x1000, 0x1800)
+def _flip(tile, bits):
+    if bits & 0x0800: tile = tile[:, ::-1]
+    if bits & 0x1000: tile = tile[::-1, :]
+    return tile
 
-def optimize(indices, tile_palettes, budget=None, allow_lossy=False):
+def optimize(indices, tile_palettes, budget=None, allow_lossy=False, palettes_rgb=None):
     ty, tx = tile_palettes.shape
-    tiles = indices.reshape(ty, 8, tx, 8).transpose(0, 2, 1, 3).reshape(-1, 8, 8)
-    palettes = tile_palettes.ravel()
-    canonical = {}
-    unique = []
-    mapping = []
-    flips = []
-    for tile in tiles:
+    if indices.shape != (ty*8, tx*8):
+        raise ValueError('Dimensões de tiles e mapa incompatíveis')
+    if budget is not None and budget < 1:
+        raise ValueError('Orçamento de tiles deve ser positivo')
+    positions = indices.reshape(ty, 8, tx, 8).transpose(0,2,1,3).reshape(-1,8,8)
+    pids = tile_palettes.ravel()
+    # A shared pattern can be reused across palettes because the tilemap
+    # independently selects its CRAM palette.
+    lookup, unique, mapping, flips = {}, [], [], []
+    for tile in positions:
         found = None
-        for variant, flag in _variants(tile):
-            key = variant.tobytes()
-            if key in canonical:
-                found = (canonical[key], flag)
+        for bits in FLIPS:
+            key = _flip(tile, bits).tobytes()
+            if key in lookup:
+                found = (lookup[key], bits)
                 break
         if found is None:
             idx = len(unique)
             unique.append(tile.copy())
-            canonical[tile.tobytes()] = idx
+            lookup[tile.tobytes()] = idx
             mapping.append(idx)
             flips.append(0)
         else:
             mapping.append(found[0])
             flips.append(found[1])
-    before = len(unique)
-    replacements = 0
-    # Approximate similar-tile replacement only when requested and necessary.
-    # Palette-independent pixel indices are compared only between tiles with
-    # the same palette ID, preventing cross-palette color mismatches.
+    lossless_count = len(unique)
+    merges = 0
     if allow_lossy and budget is not None and len(unique) > budget:
-        counts = np.bincount(np.array(mapping), minlength=len(unique))
-        representatives = np.array([int(palettes[np.flatnonzero(np.array(mapping)==i)[0]]) for i in range(len(unique))])
+        if palettes_rgb is None:
+            raise ValueError('A redução perceptual requer as paletas RGB finais')
+        palette = np.asarray(palettes_rgb, dtype=np.float32)
+        if palette.ndim != 3 or palette.shape[2] != 3:
+            raise ValueError('Formato de paletas RGB inválido')
+        mapping = np.asarray(mapping, dtype=np.int32)
+        flips = np.asarray(flips, dtype=np.uint16)
+        counts = np.bincount(mapping, minlength=len(unique)).astype(np.int32)
+        # Exact deduplication across palettes is lossless. Approximation across
+        # differently colored palettes is permitted only when BOTH tile patterns
+        # are used under the same single palette, preventing mismatched colors.
+        uses = [set() for _ in unique]
+        for i, pal in zip(mapping, pids):
+            uses[int(i)].add(int(pal))
         active = set(range(len(unique)))
-        # Merge the least-used tiles first into the closest compatible surviving
-        # tile, evaluating all four flips. Deterministic, quality-first within
-        # a least-used tier; no arbitrary color changes to the palette.
+        weights = np.array([.299,.587,.114],dtype=np.float32)
+        # Precompute color-space tile representations for single-palette patterns.
+        visual = {}
+        for i in active:
+            if len(uses[i]) == 1:
+                p = next(iter(uses[i]))
+                visual[i] = palette[p][unique[i]].astype(np.float32)
         while len(active) > budget:
             selected = None
+            # Least-used patterns first to reduce visible impact.
             for i in sorted(active, key=lambda k:(counts[k],k)):
-                candidates = [j for j in active if j != i and representatives[j] == representatives[i]]
+                if i not in visual:
+                    continue
+                candidates = [j for j in active if j != i and j in visual and uses[j] == uses[i]]
                 if not candidates:
                     continue
-                # Bound browser CPU: compare with the 48 most frequent candidates.
+                # Frequency shortlist, then RGB-weighted comparison over all flips.
                 candidates.sort(key=lambda j:(-counts[j],j))
                 best = None
-                tile = unique[i].astype(np.int16)
-                for j in candidates[:48]:
-                    for variant, flag in _variants(unique[j]):
-                        d = int(np.sum((tile-variant.astype(np.int16))**2))
-                        score = (d, -int(counts[j]), j, flag)
+                source = visual[i]
+                for j in candidates[:64]:
+                    for bits in FLIPS:
+                        diff = source - _flip(visual[j], bits)
+                        distance = float(np.sum(diff*diff*weights))
+                        score = (distance, -int(counts[j]), j, bits)
                         if best is None or score < best[0]:
-                            best = (score,j,flag)
+                            best = (score,j,bits)
                 if best is not None:
                     selected = (i,best[1],best[2])
                     break
             if selected is None:
                 break
-            i,j,flag = selected
-            for k in range(len(mapping)):
-                if mapping[k] == i:
-                    mapping[k] = j
-                    flips[k] ^= flag
+            i,j,bits = selected
+            affected = mapping == i
+            mapping[affected] = j
+            flips[affected] ^= bits
             counts[j] += counts[i]
+            uses[j].update(uses[i])
             active.remove(i)
-            replacements += 1
+            merges += 1
         retained = sorted(active)
-        remap = {old:new for new,old in enumerate(retained)}
+        reindex = {old:new for new,old in enumerate(retained)}
         unique = [unique[i] for i in retained]
-        mapping = [remap[i] for i in mapping]
-    unique_array = np.stack(unique) if unique else np.empty((0,8,8),dtype=np.uint8)
+        mapping = np.asarray([reindex[int(i)] for i in mapping],dtype=np.uint16)
     return {
-        'tiles': unique_array.astype(np.uint8),
+        'tiles': np.stack(unique).astype(np.uint8),
         'mapping': np.asarray(mapping,dtype=np.uint16),
         'flips': np.asarray(flips,dtype=np.uint16),
-        'original_positions': len(tiles),
-        'lossless_unique': before,
+        'original_positions': len(positions),
+        'lossless_unique': lossless_count,
         'unique_count': len(unique),
-        'lossy_merges': replacements,
+        'lossy_merges': merges,
         'fits_budget': budget is None or len(unique) <= budget,
     }
