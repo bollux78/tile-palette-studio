@@ -100,13 +100,13 @@ def build_test_rom(result):
     word(0x303c);word(0x7fff)  # 32768 words - 1 in D0
     loop_start=len(code)
     word(0x33fc);word(0);long(0x00c00000)  # MOVE.W #0,$C00000
-    word(0x51c8);word(loop_start-(len(code)+2))
+    word(0x51c8);word(loop_start-len(code))
     # Clear vertical scroll registers too.
     word(0x23fc);long(0x40000010);long(0x00c00004)
     word(0x303c);word(39)  # 40 VSRAM words
     loop_start=len(code)
     word(0x33fc);word(0);long(0x00c00000)
-    word(0x51c8);word(loop_start-(len(code)+2))
+    word(0x51c8);word(loop_start-len(code))
     vdp_address(0x0000);copy_words(len(packed))
     vdp_address(PLANE_A);copy_words(len(map_bytes))
     vdp_address(0x0000,'cram');copy_words(len(palette_bytes))
