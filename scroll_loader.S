@@ -374,6 +374,17 @@ issue_vram_write:
         rts
 vblank_irq:
         move.l %d0,-(%sp)
+        /* 3-button controller polling: TH low exposes START,
+         * TH high exposes the D-pad. Both bus reads occur every
+         * VBlank so an X7 can see Down+Start just as with a game. */
+        move.b #0x00,0x00a10003
+        nop
+        nop
+        move.b 0x00a10003,%d0
+        move.b #0x40,0x00a10003
+        nop
+        nop
+        move.b 0x00a10003,%d0
         move.w 0x00c00004,%d0
         move.l (%sp)+,%d0
         rte
