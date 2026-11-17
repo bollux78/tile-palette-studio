@@ -245,7 +245,8 @@ apply_hardware_scroll:
         /* VSRAM: VScroll plane A, plane B. */
         move.l #0x40000010,0x00c00004
         move.w 0x00ff0002,%d6
-        neg.w %d6
+        /* Genesis VScroll sign is opposite to HScroll:
+         * positive VScroll shifts the plane UP as camera Y increases. */
         move.w %d6,0x00c00000
         move.w #0,0x00c00000
         rts
