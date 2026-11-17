@@ -58,6 +58,21 @@ jobs:
             xdotool keyup Right
             sleep 3
             import -window root -silent diagnostics/scroll_rom/right.png
+            xdotool keydown Down
+            sleep 2
+            xdotool keyup Down
+            sleep 2
+            import -window root -silent diagnostics/scroll_rom/down.png
+            xdotool keydown Left
+            sleep 2
+            xdotool keyup Left
+            sleep 2
+            import -window root -silent diagnostics/scroll_rom/left.png
+            xdotool keydown Up
+            sleep 2
+            xdotool keyup Up
+            sleep 2
+            import -window root -silent diagnostics/scroll_rom/up.png
             kill "$pid" >/dev/null 2>&1 || true
             wait "$pid" >/dev/null 2>&1 || true
           ' || true
@@ -68,21 +83,19 @@ jobs:
           from pathlib import Path
           import json
           root=Path('diagnostics/scroll_rom')
-          p,q=root/'initial.png',root/'right.png'
-          report={'captured':p.exists() and q.exists()}
+          names=['initial','right','down','left','up']
+          files=[root/(name+'.png') for name in names]
+          report={'captured':all(f.exists() for f in files)}
           if report['captured']:
-              initial=Image.open(p).convert('RGB')
-              moved=Image.open(q).convert('RGB')
-              box=(320,176,960,624)
-              delta=ImageChops.difference(initial.crop(box),moved.crop(box))
-              report['changed_bbox']=delta.getbbox()
-              report['initial_colors']=len(initial.quantize(64).getcolors() or [])
-              report['moved_colors']=len(moved.quantize(64).getcolors() or [])
-              report['emulator_changed_after_right']=bool(delta.getbbox())
+              frames=[Image.open(f).convert('RGB').crop((320,176,960,624)) for f in files]
+              report['initial_colors']=len(frames[0].quantize(64).getcolors() or [])
+              report['movements']={}
+              for i in range(1,len(names)):
+                  report['movements'][names[i]]=bool(ImageChops.difference(frames[i-1],frames[i]).getbbox())
           (root/'report.json').write_text(json.dumps(report,indent=2))
           print(report)
           assert report['captured'] and report.get('initial_colors',0)>20, 'BlastEm failed to show picture'
-          assert report['emulator_changed_after_right'], 'Directional scroll did not change image'
+          assert all(report['movements'].values()), 'Some directional movement did not change image'
           PY
       - name: Upload evidence
         if: always()
