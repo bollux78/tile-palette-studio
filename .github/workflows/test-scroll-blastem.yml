@@ -1,7 +1,7 @@
 name: Verify 1024px VRAM cache correctness in BlastEm
 on:
   push:
-    branches: [fix/large-scroll-tile-cache]
+    branches: [experiment/x7-controller-poll]
     paths:
       - scroll_loader.b64
       - scroll_rom.py
