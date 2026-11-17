@@ -45,7 +45,9 @@ def build_scroll_rom(result, screen_width=320):
         raise ValueError('Índice de paleta deve estar entre 0 e 3.')
     n = tx * ty
     tiles = result.indices.reshape(ty,8,tx,8).transpose(0,2,1,3).reshape(n,8,8)
-    packed = bytes(32) + ((tiles[:,:,::2]<<4)|tiles[:,:,1::2]).astype(np.uint8).tobytes()
+    packed = ((tiles[:,:,::2]<<4)|tiles[:,:,1::2]).astype(np.uint8).tobytes()
+    # VDP pattern zero stays blank because the 68000 clears VRAM at boot.
+    # The first payload tile is loaded directly into pattern slot 1.
     attrs = (result.tile_palettes.astype(np.uint16).reshape(-1)<<13).astype('>u2').tobytes()
     palette = np.zeros((4,16),dtype='>u2')
     for p in range(result.settings.palettes):
