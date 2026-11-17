@@ -1,4 +1,4 @@
-name: Test pixel-scroll ROM in BlastEm
+name: Verify symmetric VDP scrolling and VBlank IRQ in BlastEm
 on:
   push:
     branches: [fix/symmetric-vdp-scroll]
