@@ -27,7 +27,7 @@ class ScrollRomTests(unittest.TestCase):
         blob,info=build_scroll_rom(obj,320)
         self.assertEqual(info['screen_size'],[320,224])
         self.assertEqual(info['scroll_range_pixels'],[192,32])
-        self.assertEqual(info['step_pixels'],8)
+        self.assertEqual(info['step_pixels'],2)
         self.assertEqual(len(blob),131072)
         self.assertEqual(int.from_bytes(blob[4:8],"big"),0x200)
         tx,ty,sw,sh,gfx,attrs,cram,commands=struct.unpack_from('>HHHHLLLL',blob,0x1d0)
@@ -37,6 +37,17 @@ class ScrollRomTests(unittest.TestCase):
         self.assertEqual(attrs, gfx + tx*ty*32)
         self.assertEqual(int.from_bytes(blob[attrs:attrs+2],'big'),0)
         self.assertEqual(int.from_bytes(blob[commands:commands+4],'big'),0x40000003)
+    def test_x7_vblank_vector_in_scroll_rom(self):
+        for width in (256,320):
+            blob,_=build_scroll_rom(self.image(512,256),width)
+            vector=int.from_bytes(blob[0x78:0x7c],'big')
+            self.assertGreaterEqual(vector,0x200)
+            self.assertLess(vector,0x2000)
+            self.assertEqual(blob[vector:vector+2],bytes.fromhex('2f00'))
+            self.assertEqual(blob[vector+8:vector+10],bytes.fromhex('4e73'))
+            self.assertIn(bytes.fromhex('8164'),blob[0x200:0x2000])
+            self.assertIn(bytes.fromhex('2000'),blob[0x200:0x2000])
+
     def test_h32_rom(self):
         blob,info=build_scroll_rom(self.image(256,320),256)
         self.assertEqual(info['screen_size'],[256,224])
