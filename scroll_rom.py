@@ -2,7 +2,7 @@
 
 A small preassembled 68000 viewer is embedded as text (scroll_loader.b64).
 The viewer redraws a fixed 320x224 or 256x224 viewport as the user presses
-the directional pad, moving 8 pixels per step. Source tiles stay in ROM.
+the directional pad, moving 2 pixels per VBlank step. Source tiles stay in ROM.
 No SGDK, no external compilation, no compression or inaccurate flip reuse.
 """
 from pathlib import Path
@@ -89,7 +89,7 @@ def build_scroll_rom(result, screen_width=320):
     info = {
         'image_size':[width,height], 'screen_size':[screen_width,224],
         'scroll_range_pixels':[(tx-screen_width//8)*8,(ty-28)*8],
-        'step_pixels':8, 'image_tiles':n, 'rom_bytes':size,
+        'step_pixels':2, 'image_tiles':n, 'rom_bytes':size,
         'graphics_ptr':graphics_ptr, 'attributes_ptr':attrs_ptr,
         'palette_ptr':cram_ptr, 'commands_ptr':commands_ptr,
     }
