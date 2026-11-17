@@ -59,10 +59,14 @@ A ROM de teste grava **cada tile 8×8 na posição original, a partir do índice
 
 ## ROM de teste com rolagem por direcional (experimental)
 
-Para imagens maiores do que uma tela, escolha **ROM de teste → Rolagem com direcional** (ou Automático) e selecione **H40 320 × 224** ou **H32 256 × 224** para a janela de visualização. O botão de ROM gera um `.bin` autônomo: o controlador 1 movimenta a imagem em passos de **8 pixels** para cima, baixo, esquerda e direita. O programa 68000 carrega na VRAM somente os tiles atualmente visíveis, preservando o índice 0 transparente. A ROM pode conter uma imagem de até **1024 × 1024 pixels** (e até 2 MiB); o canvas precisa ser pelo menos tão grande quanto a janela escolhida. Como a ROM é um visualizador de teste, a atualização da tela pode apresentar breves interrupções durante a movimentação; não é scroll suave de um jogo.
+Para imagens maiores do que uma tela, escolha **ROM de teste → Rolagem com direcional** (ou Automático) e selecione **H40 320 × 224** ou **H32 256 × 224** para a janela de visualização. O botão de ROM gera um `.bin` autônomo: o controlador 1 movimenta a imagem em passos de **8 pixels** para cima, baixo, esquerda e direita. O programa 68000 carrega na VRAM somente os tiles atualmente visíveis, preservando o índice 0 transparente. A ROM pode conter uma imagem de até **1024 × 1024 pixels** (e até 2 MiB); o canvas precisa ser pelo menos tão grande quanto a janela escolhida. Como a ROM é um visualizador de teste, o carregador atualiza somente a faixa de tiles que entra na tela, sem desligar o vídeo entre movimentos. A rolagem continua em passos de 8 pixels, não é pixel-a-pixel nem usa DMA.
 
 O modo de **ROM estática** continua disponível para 256 × 224 e 320 × 224. O gerador de ROM com direcional usa `scroll_rom.py` e o carregador 68000 `scroll_loader.b64`, compilado do fonte `scroll_loader.S`. Não há compilação no navegador nem conexão com servidor para processar as imagens (a aplicação apenas baixa seu próprio código e o carregador).
 
 ## Manter proporção com fundo preto
 
 Marque **Manter proporção (encaixar sem cortar, fundo preto)** para preservar o aspecto da imagem original dentro das dimensões escolhidas. O maior eixo é usado como referência e o espaço restante fica preto; a imagem nunca é cortada. Com a opção desmarcada, a imagem é redimensionada exatamente às dimensões do canvas, mesmo que isso implique distorção. O comportamento vale para a quantização, ROM e PNG redimensionado.
+
+### Resoluções PAL de 240 linhas
+
+Os presets 320×240 e 256×240 foram mantidos e identificados como **PAL**. Servem para produzir gráficos com 30 linhas de tiles em vez de 28. As ROMs de teste atuais (estática e com direcional) continuam usando telas de 224 linhas; o preset PAL por si só não altera a inicialização V30 do VDP.
