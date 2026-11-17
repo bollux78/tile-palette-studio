@@ -118,12 +118,25 @@ def build_test_rom(result):
     vdp_address(0x0000,'cram');copy_words(len(palette_bytes))
     # Display ON + Mode 5 + VBlank interrupt enabled (VDP reg 1 bit 5).
     # Mega EverDrive X7's in-game menu relies on VBlank interrupts.
+    # Controller 1: configure TH as output and default it high.
+    # Normal Mega Drive 3-button polling must also read TH LOW to
+    # make the START state observable to the cartridge bus monitor.
+    word(0x13fc);word(0x0040);long(0x00a10009)
+    word(0x13fc);word(0x0040);long(0x00a10003)
     vdp_register(1,0x64)
     word(0x46fc);word(0x2000)  # Allow IRQs after initializing the image.
     word(0x60fe)  # BRA.S * : static forever
     irq_address = 0x200 + len(code)
     # Preserve D0; acknowledge VDP VBlank interrupt; return from exception.
     word(0x2f00)  # MOVE.L D0,-(SP)
+    # Poll the controller's START phase (TH=0) and directional phase
+    # (TH=1) on every VBlank, as commercial Mega Drive games do.
+    word(0x13fc);word(0x0000);long(0x00a10003)  # TH low
+    word(0x4e71);word(0x4e71)  # settle I/O lines
+    word(0x1039);long(0x00a10003)  # read START/A phase
+    word(0x13fc);word(0x0040);long(0x00a10003)  # TH high
+    word(0x4e71);word(0x4e71)
+    word(0x1039);long(0x00a10003)  # read directions/B/C phase
     word(0x3039);long(0x00c00004)  # MOVE.W $C00004,D0
     word(0x201f)  # MOVE.L (SP)+,D0
     word(0x4e73)  # RTE

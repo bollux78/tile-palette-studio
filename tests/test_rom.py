@@ -49,8 +49,12 @@ class RomTest(unittest.TestCase):
             self.assertGreaterEqual(handler,0x200)
             self.assertLess(handler,0x1000)
             self.assertEqual(rom[handler:handler+2],bytes.fromhex('2f00'))
-            self.assertEqual(rom[handler+2:handler+8],bytes.fromhex('303900c00004'))
-            self.assertEqual(rom[handler+8:handler+12],bytes.fromhex('201f4e73'))
+            handler_code=rom[handler:handler+80]
+            self.assertIn(bytes.fromhex('13fc000000a10003'),handler_code)
+            self.assertIn(bytes.fromhex('13fc004000a10003'),handler_code)
+            self.assertIn(bytes.fromhex('103900a10003'),handler_code)
+            self.assertIn(bytes.fromhex('303900c00004'),handler_code)
+            self.assertIn(bytes.fromhex('201f4e73'),handler_code)
             code=rom[0x200:handler]
             self.assertIn(bytes.fromhex('33fc816400c00004'),code)
             self.assertIn(bytes.fromhex('46fc2000'),code)
