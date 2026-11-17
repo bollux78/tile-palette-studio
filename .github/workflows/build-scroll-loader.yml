@@ -1,7 +1,7 @@
 name: Build scroll ROM loader
 on:
   push:
-    branches: [fix/scroll-no-black-flash]
+    branches: [feature/vdp-hardware-scroll]
     paths: ['scroll_loader.S', '.github/workflows/build-scroll-loader.yml']
   workflow_dispatch:
 permissions:
@@ -41,7 +41,9 @@ jobs:
           git add scroll_loader.b64
           if ! git diff --cached --quiet; then
             git commit -m "Compile 68000 scroll loader template [skip ci]"
-            git push origin HEAD:fix/scroll-no-black-flash
+            git fetch origin feature/vdp-hardware-scroll
+            git rebase origin/feature/vdp-hardware-scroll
+            git push origin HEAD:feature/vdp-hardware-scroll
           fi
       - uses: actions/upload-artifact@v4
         with:
