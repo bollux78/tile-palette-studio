@@ -95,7 +95,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f diagnostics/scroll_rom/report.json
+          git add -f diagnostics/scroll_rom/report.json diagnostics/scroll_rom/initial.png diagnostics/scroll_rom/right.png
           if ! git diff --cached --quiet; then
             git commit -m "Capture scroll ROM controller audit [skip ci]"
             git fetch origin feature/scroll-rom
