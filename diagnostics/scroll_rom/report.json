@@ -10,8 +10,8 @@
   "frame_colors": {
     "initial": 64,
     "right": 62,
-    "down": 64,
-    "left": 63,
+    "down": 63,
+    "left": 64,
     "up": 64
   }
 }
