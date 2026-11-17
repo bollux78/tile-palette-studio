@@ -116,8 +116,17 @@ def build_test_rom(result):
     vdp_address(0x0000);copy_words(len(packed))
     vdp_address(PLANE_A);copy_words(len(map_bytes))
     vdp_address(0x0000,'cram');copy_words(len(palette_bytes))
-    vdp_register(1,0x44)  # display on, mode 5, 224 lines
+    # Display ON + Mode 5 + VBlank interrupt enabled (VDP reg 1 bit 5).
+    # Mega EverDrive X7's in-game menu relies on VBlank interrupts.
+    vdp_register(1,0x64)
+    word(0x46fc);word(0x2000)  # Allow IRQs after initializing the image.
     word(0x60fe)  # BRA.S * : static forever
+    irq_address = 0x200 + len(code)
+    # Preserve D0; acknowledge VDP VBlank interrupt; return from exception.
+    word(0x2f00)  # MOVE.L D0,-(SP)
+    word(0x3039);long(0x00c00004)  # MOVE.W $C00004,D0
+    word(0x201f)  # MOVE.L (SP)+,D0
+    word(0x4e73)  # RTE
 
     rom=bytearray(ROM_SIZE)
     # 68000 vectors: stack pointer, reset PC. Unused vectors point to loop.
@@ -127,6 +136,7 @@ def build_test_rom(result):
     idle_addr=0x200+len(code)-2
     for offset in range(8,0x100,4):
         rom[offset:offset+4]=_be32(idle_addr)
+    rom[0x78:0x7c]=_be32(irq_address)  # 68000 level-6 VBlank autovector
     def header(offset,text,length):
         rom[offset:offset+length]=text.encode('ascii')[:length].ljust(length,b' ')
     header(0x100,'SEGA MEGA DRIVE ',16)
