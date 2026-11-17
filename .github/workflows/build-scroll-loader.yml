@@ -1,7 +1,7 @@
 name: Build scroll ROM loader
 on:
   push:
-    branches: [fix/symmetric-vdp-scroll]
+    branches: [fix/large-scroll-tile-cache]
     paths: ['scroll_loader.S', '.github/workflows/build-scroll-loader.yml']
   workflow_dispatch:
 permissions:
@@ -41,9 +41,9 @@ jobs:
           git add scroll_loader.b64
           if ! git diff --cached --quiet; then
             git commit -m "Compile 68000 scroll loader template [skip ci]"
-            git fetch origin fix/symmetric-vdp-scroll
-            git rebase origin/fix/symmetric-vdp-scroll
-            git push origin HEAD:fix/symmetric-vdp-scroll
+            git fetch origin fix/large-scroll-tile-cache
+            git rebase origin/fix/large-scroll-tile-cache
+            git push origin HEAD:fix/large-scroll-tile-cache
           fi
       - uses: actions/upload-artifact@v4
         with:
