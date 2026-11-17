@@ -90,12 +90,14 @@ jobs:
               frames=[Image.open(f).convert('RGB').crop((320,176,960,624)) for f in files]
               report['initial_colors']=len(frames[0].quantize(64).getcolors() or [])
               report['movements']={}
+              report['frame_colors']={name:len(frame.quantize(64).getcolors() or []) for name,frame in zip(names,frames)}
               for i in range(1,len(names)):
                   report['movements'][names[i]]=bool(ImageChops.difference(frames[i-1],frames[i]).getbbox())
           (root/'report.json').write_text(json.dumps(report,indent=2))
           print(report)
           assert report['captured'] and report.get('initial_colors',0)>20, 'BlastEm failed to show picture'
           assert all(report['movements'].values()), 'Some directional movement did not change image'
+          assert min(report['frame_colors'].values()) > 20, 'Black frame or corrupted palette captured while panning'
           PY
       - name: Upload evidence
         if: always()
