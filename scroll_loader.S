@@ -266,7 +266,8 @@ upload_tile:
         andi.l #0x00003fff,%d4
         swap %d4
         move.l %d3,%d5
-        lsr.l #14,%d5
+        lsr.l #8,%d5
+        lsr.l #6,%d5
         andi.l #3,%d5
         or.l %d5,%d4
         ori.l #0x40000000,%d4
