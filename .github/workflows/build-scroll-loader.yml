@@ -1,7 +1,7 @@
 name: Build scroll ROM loader
 on:
   push:
-    branches: [fix/large-scroll-tile-cache]
+    branches: [experiment/x7-controller-poll]
     paths: ['scroll_loader.S', '.github/workflows/build-scroll-loader.yml']
   workflow_dispatch:
 permissions:
@@ -41,9 +41,9 @@ jobs:
           git add scroll_loader.b64
           if ! git diff --cached --quiet; then
             git commit -m "Compile 68000 scroll loader template [skip ci]"
-            git fetch origin fix/large-scroll-tile-cache
-            git rebase origin/fix/large-scroll-tile-cache
-            git push origin HEAD:fix/large-scroll-tile-cache
+            git fetch origin experiment/x7-controller-poll
+            git rebase origin/experiment/x7-controller-poll
+            git push origin HEAD:experiment/x7-controller-poll
           fi
       - uses: actions/upload-artifact@v4
         with:
