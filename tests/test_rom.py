@@ -42,6 +42,19 @@ class RomTest(unittest.TestCase):
             seen+=1
         self.assertEqual(seen,5)
 
+    def test_everdrive_vblank_autovector_enabled(self):
+        for width in (256,320):
+            rom,_=build_test_rom(self.make_result(width))
+            handler=int.from_bytes(rom[0x78:0x7c],'big')
+            self.assertGreaterEqual(handler,0x200)
+            self.assertLess(handler,0x1000)
+            self.assertEqual(rom[handler:handler+2],bytes.fromhex('2f00'))
+            self.assertEqual(rom[handler+2:handler+8],bytes.fromhex('303900c00004'))
+            self.assertEqual(rom[handler+8:handler+12],bytes.fromhex('201f4e73'))
+            code=rom[0x200:handler]
+            self.assertIn(bytes.fromhex('33fc816400c00004'),code)
+            self.assertIn(bytes.fromhex('46fc2000'),code)
+
     def test_h32(self):
         rom,info=build_test_rom(self.make_result(256))
         self.assertEqual(len(rom),131072)
