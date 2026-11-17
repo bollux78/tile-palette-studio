@@ -9,7 +9,7 @@ from scroll_rom import build_scroll_rom
 
 out=Path('diagnostics/scroll_rom')
 out.mkdir(parents=True,exist_ok=True)
-width,height=512,256
+width,height=1024,560
 tw,th=width//8,height//8
 index=np.empty((height,width),dtype=np.uint8)
 tilepal=np.empty((th,tw),dtype=np.uint8)
