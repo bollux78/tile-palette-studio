@@ -105,16 +105,3 @@ jobs:
         with:
           name: scroll-rom-blastem
           path: diagnostics/scroll_rom/
-
-      - name: Temporary visual evidence for ROM review
-        if: always()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f diagnostics/scroll_rom/initial.png diagnostics/scroll_rom/right.png diagnostics/scroll_rom/down.png diagnostics/scroll_rom/left.png diagnostics/scroll_rom/up.png diagnostics/scroll_rom/report.json || true
-          if ! git diff --cached --quiet; then
-            git commit -m "Temporary visual evidence of hardware scrolling [skip ci]"
-            git fetch origin feature/vdp-hardware-scroll
-            git rebase origin/feature/vdp-hardware-scroll
-            git push origin HEAD:feature/vdp-hardware-scroll
-          fi
