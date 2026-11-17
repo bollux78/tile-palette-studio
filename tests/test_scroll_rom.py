@@ -44,7 +44,7 @@ class ScrollRomTests(unittest.TestCase):
             self.assertGreaterEqual(vector,0x200)
             self.assertLess(vector,0x2000)
             self.assertEqual(blob[vector:vector+2],bytes.fromhex('2f00'))
-            self.assertEqual(blob[vector+8:vector+10],bytes.fromhex('4e73'))
+            self.assertEqual(blob[vector+8:vector+12],bytes.fromhex('201f4e73'))
             self.assertIn(bytes.fromhex('8164'),blob[0x200:0x2000])
             self.assertIn(bytes.fromhex('2000'),blob[0x200:0x2000])
 
