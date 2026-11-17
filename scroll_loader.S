@@ -138,7 +138,8 @@ go_right:
         move.w %d2,0x00ff0000
         andi.w #7,%d2
         bne apply_camera
-        /* Right crossing: load the NEXT not-yet-visible column. */
+        /* At the exact tile boundary, retire the leftmost tile by
+         * advancing hardware scroll before reusing its cached pattern. */
         move.w 0x00ff0000,%d0
         lsr.w #3,%d0
         add.w 0x000001d4,%d0
@@ -146,7 +147,22 @@ go_right:
         lsr.w #3,%d1
         bsr apply_hardware_scroll
         bsr upload_new_col
-        bra mainloop        bsr upload_new_col
+        bra mainloop
+
+go_left:
+        move.w 0x00ff0000,%d2
+        beq mainloop
+        subq.w #2,%d2
+        move.w %d2,0x00ff0000
+        andi.w #7,%d2
+        cmpi.w #6,%d2
+        bne apply_camera
+        /* Restore leftmost tile while still outside current viewport. */
+        move.w 0x00ff0000,%d0
+        lsr.w #3,%d0
+        move.w 0x00ff0002,%d1
+        lsr.w #3,%d1
+        bsr upload_new_col
         bra finish_movement
 
 go_down:
@@ -167,7 +183,21 @@ go_down:
         lsr.w #3,%d0
         bsr apply_hardware_scroll
         bsr upload_new_row
-        bra mainloop        bsr upload_new_row
+        bra mainloop
+
+go_up:
+        move.w 0x00ff0002,%d2
+        beq mainloop
+        subq.w #2,%d2
+        move.w %d2,0x00ff0002
+        andi.w #7,%d2
+        cmpi.w #6,%d2
+        bne apply_camera
+        move.w 0x00ff0002,%d1
+        lsr.w #3,%d1
+        move.w 0x00ff0000,%d0
+        lsr.w #3,%d0
+        bsr upload_new_row
         bra finish_movement
 
 upload_new_col:
