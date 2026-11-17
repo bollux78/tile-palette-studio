@@ -1,7 +1,7 @@
 name: Test scroll ROM in BlastEm
 on:
   push:
-    branches: [feature/scroll-rom]
+    branches: [fix/scroll-no-black-flash]
     paths:
       - scroll_loader.b64
       - scroll_rom.py
@@ -103,3 +103,16 @@ jobs:
         with:
           name: scroll-rom-blastem
           path: diagnostics/scroll_rom/
+
+      - name: Save emulator screenshots for visual audit (temporary)
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f diagnostics/scroll_rom/initial.png diagnostics/scroll_rom/right.png diagnostics/scroll_rom/down.png diagnostics/scroll_rom/left.png diagnostics/scroll_rom/up.png diagnostics/scroll_rom/report.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "Capture no-flash scrolling emulator evidence [skip ci]"
+            git fetch origin fix/scroll-no-black-flash
+            git rebase origin/fix/scroll-no-black-flash
+            git push origin HEAD:fix/scroll-no-black-flash
+          fi
