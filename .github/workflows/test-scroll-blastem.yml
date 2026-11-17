@@ -1,4 +1,4 @@
-name: Test hardware scroll ROM in BlastEm
+name: Test pixel-scroll ROM in BlastEm
 on:
   push:
     branches: [feature/vdp-hardware-scroll]
