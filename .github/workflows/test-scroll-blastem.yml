@@ -1,4 +1,4 @@
-name: Test scroll ROM in BlastEm
+name: Test hardware scroll ROM in BlastEm
 on:
   push:
     branches: [feature/vdp-hardware-scroll]
