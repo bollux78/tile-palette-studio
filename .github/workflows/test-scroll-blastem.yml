@@ -1,0 +1,104 @@
+name: Test scroll ROM in BlastEm
+on:
+  push:
+    branches: [feature/scroll-rom]
+    paths:
+      - scroll_loader.b64
+      - scroll_rom.py
+      - tests/generate_scroll_demo.py
+      - .github/workflows/test-scroll-blastem.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  blastem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy pillow
+      - name: Generate 512x256 scroll ROM H40/H32
+        run: python tests/generate_scroll_demo.py
+      - name: Install emulator with virtual video
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blastem xvfb imagemagick xdotool gcc
+      - name: Capture initial and panned frames on actual BlastEm
+        run: |
+          cat > diagnostics/scroll_rom/suppress_vsync.c <<'C'
+          #define _GNU_SOURCE
+          #include <dlfcn.h>
+          #include <stdio.h>
+          #include <string.h>
+          int SDL_ShowSimpleMessageBox(unsigned int flags, const char *title,
+                                       const char *msg, void *window) {
+            if (msg && strstr(msg, "Failed to set vsync")) {
+              fprintf(stderr,"Suppressed headless VSync dialog\n");
+              return 0;
+            }
+            int (*real_fn)(unsigned int,const char*,const char*,void*) =
+              dlsym(RTLD_NEXT, "SDL_ShowSimpleMessageBox");
+            return real_fn ? real_fn(flags,title,msg,window) : 0;
+          }
+          C
+          gcc -shared -fPIC -o diagnostics/scroll_rom/suppress_vsync.so diagnostics/scroll_rom/suppress_vsync.c -ldl
+          timeout 65s xvfb-run -a -s '-screen 0 1280x800x24' bash -c '
+            export SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1
+            LD_PRELOAD="$PWD/diagnostics/scroll_rom/suppress_vsync.so" blastem -g diagnostics/scroll_rom/test_320.bin 640 448 > diagnostics/scroll_rom/blastem.log 2>&1 &
+            pid=$!
+            sleep 10
+            xwininfo -root -tree > diagnostics/scroll_rom/windows.txt || true
+            import -window root -silent diagnostics/scroll_rom/initial.png
+            xdotool search --onlyvisible --name "BlastEm" windowactivate --sync || true
+            xdotool keydown Right
+            sleep 3
+            xdotool keyup Right
+            sleep 3
+            import -window root -silent diagnostics/scroll_rom/right.png
+            kill "$pid" >/dev/null 2>&1 || true
+            wait "$pid" >/dev/null 2>&1 || true
+          ' || true
+      - name: Compare screenshots and detect movement
+        run: |
+          python - <<'PY'
+          from PIL import Image, ImageChops
+          from pathlib import Path
+          import json
+          root=Path('diagnostics/scroll_rom')
+          p,q=root/'initial.png',root/'right.png'
+          report={'captured':p.exists() and q.exists()}
+          if report['captured']:
+              initial=Image.open(p).convert('RGB')
+              moved=Image.open(q).convert('RGB')
+              box=(320,176,960,624)
+              delta=ImageChops.difference(initial.crop(box),moved.crop(box))
+              report['changed_bbox']=delta.getbbox()
+              report['initial_colors']=len(initial.quantize(64).getcolors() or [])
+              report['moved_colors']=len(moved.quantize(64).getcolors() or [])
+              report['emulator_changed_after_right']=bool(delta.getbbox())
+          (root/'report.json').write_text(json.dumps(report,indent=2))
+          print(report)
+          assert report['captured'] and report.get('initial_colors',0)>20, 'BlastEm failed to show picture'
+          assert report['emulator_changed_after_right'], 'Directional scroll did not change image'
+          PY
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scroll-rom-blastem
+          path: diagnostics/scroll_rom/
+      - name: Commit small audit report
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f diagnostics/scroll_rom/report.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Capture scroll ROM controller audit [skip ci]"
+            git fetch origin feature/scroll-rom
+            git rebase origin/feature/scroll-rom
+            git push origin HEAD:feature/scroll-rom
+          fi
