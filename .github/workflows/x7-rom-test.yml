@@ -1,0 +1,54 @@
+name: Package X7 controller polling test ROMs
+on:
+  push:
+    branches: [experiment/x7-controller-poll]
+    paths:
+      - tests/generate_x7_test.py
+      - scroll_loader.b64
+      - rom_test.py
+      - .github/workflows/x7-rom-test.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy pillow
+      - run: python tests/generate_x7_test.py
+      - name: Check IRQ and controller read instruction sequences
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          for path in sorted(Path('diagnostics/x7').glob('*.bin')):
+              data=path.read_bytes()
+              handler=int.from_bytes(data[0x78:0x7c],'big')
+              assert 0x200 <= handler < 0x2000,(path,handler)
+              code=data[handler:handler+128]
+              assert bytes.fromhex('00a10003') in code,(path,'no controller data port reads')
+              assert bytes.fromhex('4e73') in code,(path,'missing RTE')
+              assert bytes.fromhex('8164') in data[0x200:0x2000],(path,'no VBlank IRQ enabled')
+              print(path,len(data),hex(handler))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mega-everdrive-x7-test-roms
+          path: diagnostics/x7/*.bin
+      - name: Keep experimental ROMs available by direct GitHub link
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f diagnostics/x7/x7_static_test.bin diagnostics/x7/x7_scroll_test.bin
+          if ! git diff --cached --quiet; then
+            git commit -m "Build experimental X7 controller-polling ROMs [skip ci]"
+            git fetch origin experiment/x7-controller-poll
+            git rebase origin/experiment/x7-controller-poll
+            git push origin HEAD:experiment/x7-controller-poll
+          fi
