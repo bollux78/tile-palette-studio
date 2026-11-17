@@ -1,7 +1,7 @@
-name: Verify symmetric VDP scrolling and VBlank IRQ in BlastEm
+name: Verify 1024px VRAM cache correctness in BlastEm
 on:
   push:
-    branches: [fix/symmetric-vdp-scroll]
+    branches: [fix/large-scroll-tile-cache]
     paths:
       - scroll_loader.b64
       - scroll_rom.py
