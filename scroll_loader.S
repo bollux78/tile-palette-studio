@@ -7,7 +7,11 @@
         .org 0
         .long 0x00ffff00
         .long start
-        .rept 62
+        .rept 28
+        .long hang
+        .endr
+        .long vblank_irq
+        .rept 33
         .long hang
         .endr
         .org 0x100
@@ -110,7 +114,9 @@ preload_col:
         addq.w #1,%d1
         dbra %d7,preload_row
         bsr apply_hardware_scroll
-        move.w #0x8144,0x00c00004
+        /* Enable VBlank IRQ after graphics initialization for X7 menu. */
+        move.w #0x8164,0x00c00004
+        move.w #0x2000,%sr
 
 mainloop:
         bsr wait_vblank_start
@@ -350,5 +356,11 @@ issue_vram_write:
         ori.l #0x40000000,%d4
         move.l %d4,0x00c00004
         rts
+vblank_irq:
+        move.l %d0,-(%sp)
+        move.w 0x00c00004,%d0
+        move.l (%sp)+,%d0
+        rte
+
 hang:
         bra hang
