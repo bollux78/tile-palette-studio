@@ -70,3 +70,9 @@ Marque **Manter proporção (encaixar sem cortar, fundo preto)** para preservar 
 ### Resoluções PAL de 240 linhas
 
 Os presets 320×240 e 256×240 foram mantidos e identificados como **PAL**. Servem para produzir gráficos com 30 linhas de tiles em vez de 28. As ROMs de teste atuais (estática e com direcional) continuam usando telas de 224 linhas; o preset PAL por si só não altera a inicialização V30 do VDP.
+
+### Rolagem simétrica e Mega EverDrive X7
+
+A ROM de rolagem usa uma reserva circular de **43 × 31 tiles (H40)** ou **35 × 31 (H32)** para pré-carregar faixas à frente e atrás da câmera. Ao inverter a direção (esquerda/cima), os próximos tiles já estão em VRAM e a atualização de faixa ocorre fora da região visível, evitando a espera adicional de VBlank da versão anterior.
+
+As ROMs **estática e de rolagem** habilitam agora a interrupção vertical do VDP (V-Int), permitem interrupções após a inicialização e possuem um tratador mínimo com retorno por `RTE`. Isso corrige a condição documentada pelo fabricante na qual o menu *Start + baixo* do **Mega EverDrive X7** não funciona quando o jogo desativa o VBlank. **A compatibilidade final com o menu do X7 ainda precisa ser confirmada em cartucho real**; o BlastEm permite verificar a execução das ROMs, mas não o menu do EverDrive.

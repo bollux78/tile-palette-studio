@@ -7,7 +7,11 @@
         .org 0
         .long 0x00ffff00
         .long start
-        .rept 62
+        .rept 28
+        .long hang
+        .endr
+        .long vblank_irq
+        .rept 33
         .long hang
         .endr
         .org 0x100
@@ -41,7 +45,7 @@ commands_ptr: .long 0
 
         .org 0x200
 /* Hardware scrolling viewer: VDP HScroll table + VSRAM.
- * A circular tile pattern cache is 41x29 (H40) / 33x29 (H32).
+ * A circular tile pattern cache is 43x31 (H40) / 35x31 (H32).
  * Plane A is always 64x32, and new 8x8 tiles are uploaded only
  * when the camera crosses a tile boundary. Scroll steps are 2 px.
  */
@@ -95,13 +99,14 @@ load_cram:
         clr.w 0x00ff0000          /* camera x in pixels */
         clr.w 0x00ff0002          /* camera y in pixels */
 
-        /* Initially load 41x29 (or 33x29) tiles including one
-         * extra row/column, so movement can begin immediately. */
+        /* Load screenTW+3 columns and 31 rows: two spare strips
+         * allow immediate camera movement when reversing direction. */
         clr.w %d1
-        move.w #28,%d7
+        move.w #30,%d7
 preload_row:
         clr.w %d0
         move.w 0x000001d4,%d6
+        addq.w #2,%d6
 preload_col:
         bsr upload_tile_with_map
         addq.w #1,%d0
@@ -109,7 +114,9 @@ preload_col:
         addq.w #1,%d1
         dbra %d7,preload_row
         bsr apply_hardware_scroll
-        move.w #0x8144,0x00c00004
+        /* Enable VBlank IRQ after graphics initialization for X7 menu. */
+        move.w #0x8164,0x00c00004
+        move.w #0x2000,%sr
 
 mainloop:
         bsr wait_vblank_start
@@ -138,11 +145,15 @@ go_right:
         move.w %d2,0x00ff0000
         andi.w #7,%d2
         bne apply_camera
-        /* At the exact tile boundary, retire the leftmost tile by
-         * advancing hardware scroll before reusing its cached pattern. */
+        /* Cache holds 3 spare columns, so the forward strip is only
+         * needed after the second complete tile step (x >= 16).
+         * Scroll first, then recycle a safely offscreen column. */
         move.w 0x00ff0000,%d0
+        cmpi.w #16,%d0
+        blo apply_camera
         lsr.w #3,%d0
         add.w 0x000001d4,%d0
+        addq.w #1,%d0
         move.w 0x00ff0002,%d1
         lsr.w #3,%d1
         bsr apply_hardware_scroll
@@ -157,13 +168,19 @@ go_left:
         andi.w #7,%d2
         cmpi.w #6,%d2
         bne apply_camera
-        /* Restore leftmost tile while still outside current viewport. */
+        /* Prepare one tile BEHIND camera on leaving a tile boundary.
+         * The leftmost visible tile is already in the spare cache;
+         * uploading it here was causing the visible hitch. */
         move.w 0x00ff0000,%d0
+        cmpi.w #8,%d0
+        blo apply_camera
         lsr.w #3,%d0
+        subq.w #1,%d0
         move.w 0x00ff0002,%d1
         lsr.w #3,%d1
+        bsr apply_hardware_scroll
         bsr upload_new_col
-        bra finish_movement
+        bra mainloop
 
 go_down:
         move.w 0x000001d2,%d1
@@ -177,8 +194,10 @@ go_down:
         andi.w #7,%d2
         bne apply_camera
         move.w 0x00ff0002,%d1
+        cmpi.w #16,%d1
+        blo apply_camera
         lsr.w #3,%d1
-        add.w #28,%d1
+        add.w #29,%d1
         move.w 0x00ff0000,%d0
         lsr.w #3,%d0
         bsr apply_hardware_scroll
@@ -193,15 +212,21 @@ go_up:
         andi.w #7,%d2
         cmpi.w #6,%d2
         bne apply_camera
+        /* Same look-behind prefetch as left: update row before it
+         * becomes visible, with no extra VBlank wait. */
         move.w 0x00ff0002,%d1
+        cmpi.w #8,%d1
+        blo apply_camera
         lsr.w #3,%d1
+        subq.w #1,%d1
         move.w 0x00ff0000,%d0
         lsr.w #3,%d0
+        bsr apply_hardware_scroll
         bsr upload_new_row
-        bra finish_movement
+        bra mainloop
 
 upload_new_col:
-        move.w #28,%d7
+        move.w #30,%d7
 col_loop:
         bsr upload_tile_with_map
         addq.w #1,%d1
@@ -210,16 +235,13 @@ col_loop:
 
 upload_new_row:
         move.w 0x000001d4,%d7
+        addq.w #2,%d7
 row_loop:
         bsr upload_tile_with_map
         addq.w #1,%d0
         dbra %d7,row_loop
         rts
 
-finish_movement:
-        /* Only the offscreen tile stripe was updated; synchronize
-         * the actual hardware scroll-register change to next VBlank. */
-        bsr wait_vblank_start
 apply_camera:
         bsr apply_hardware_scroll
         bra mainloop
@@ -253,7 +275,7 @@ apply_hardware_scroll:
 
 /* Input: D0 = source tile x, D1 = source tile y.
  * Uses source ROM pixel tiles and tile attributes. A physical tile in
- * VRAM has cache coordinates x%(screenTW+1), y%29; the name table
+ * VRAM has cache coordinates x%(screenTW+3), y%31; the name table
  * position is x%64,y%32. Tile 0 is always kept black/blank.
  */
 upload_tile_with_map:
@@ -279,11 +301,11 @@ upload_tile_with_map:
         /* Pattern cache ring coordinates. */
         moveq #0,%d2
         move.w %d1,%d2
-        divu.w #29,%d2
+        divu.w #31,%d2
         swap %d2
         andi.l #0x0000ffff,%d2
         move.w 0x000001d4,%d5
-        addq.w #1,%d5
+        addq.w #3,%d5
         mulu.w %d5,%d2
         moveq #0,%d3
         move.w %d0,%d3
@@ -334,5 +356,11 @@ issue_vram_write:
         ori.l #0x40000000,%d4
         move.l %d4,0x00c00004
         rts
+vblank_irq:
+        move.l %d0,-(%sp)
+        move.w 0x00c00004,%d0
+        move.l (%sp)+,%d0
+        rte
+
 hang:
         bra hang
