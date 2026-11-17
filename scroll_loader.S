@@ -113,6 +113,7 @@ key_up:
         beq mainloop
         subq.w #1,%d1
         move.w %d1,0x00ff0002
+        moveq #0,%d7
         bra moved
 key_down:
         move.w 0x00ff0002,%d1
@@ -122,12 +123,14 @@ key_down:
         bhs mainloop
         addq.w #1,%d1
         move.w %d1,0x00ff0002
+        moveq #1,%d7
         bra moved
 key_left:
         move.w 0x00ff0000,%d1
         beq mainloop
         subq.w #1,%d1
         move.w %d1,0x00ff0000
+        moveq #2,%d7
         bra moved
 key_right:
         move.w 0x00ff0000,%d1
@@ -137,8 +140,9 @@ key_right:
         bhs mainloop
         addq.w #1,%d1
         move.w %d1,0x00ff0000
+        moveq #3,%d7
 moved:
-        bsr render_frame
+        bsr update_visible_stripe
         /* Modest key repeat delay; ROM is intentionally a simple viewer. */
         move.w #0xffff,%d0
 delay:
@@ -179,9 +183,105 @@ tile_words:
         adda.w %d6,%a0
         dbra %d3,tile_row
 
-        /* Name table attributes already contain CRAM selection bits;
-         * hardware tile index is viewport position + 1, no flip bits.
-         */
+        bsr paint_map
+        move.w #0x8144,0x00c00004
+        rts
+
+/* When moving just one 8px tile, only upload the entering row/column.
+ * Use a 40x28/32x28 ring of VRAM pattern slots. The display remains ON
+ * while scrolling: no black frames and much less transferred data.
+ */
+update_visible_stripe:
+        /* Wait for start of vertical blanking, then upload the new strip. */
+wait_active:
+        move.w 0x00c00004,%d2
+        btst #3,%d2
+        bne wait_active
+wait_blank:
+        move.w 0x00c00004,%d2
+        btst #3,%d2
+        beq wait_blank
+        cmpi.w #2,%d7
+        bhs change_horizontal
+        /* Up / down: upload one entering row across screen width. */
+        move.w 0x00ff0002,%d1
+        tst.w %d7
+        beq vertical_ready
+        add.w #27,%d1
+vertical_ready:
+        move.w 0x00ff0000,%d0
+        move.w 0x000001d4,%d7
+        subq.w #1,%d7
+vertical_loop:
+        bsr upload_tile
+        addq.w #1,%d0
+        dbra %d7,vertical_loop
+        bra stripe_done
+change_horizontal:
+        /* Left / right: upload one entering column across 28 rows. */
+        move.w 0x00ff0000,%d0
+        cmpi.w #3,%d7
+        bne horizontal_ready
+        add.w 0x000001d4,%d0
+        subq.w #1,%d0
+horizontal_ready:
+        move.w 0x00ff0002,%d1
+        move.w #27,%d7
+horizontal_loop:
+        bsr upload_tile
+        addq.w #1,%d1
+        dbra %d7,horizontal_loop
+stripe_done:
+        bsr paint_map
+        rts
+
+/* Upload a single 8x8 tile to circular VRAM pattern slot.
+ * Input D0=source tile X, D1=source tile Y. Preserve D0,D1,D7.
+ */
+upload_tile:
+        moveq #0,%d2
+        move.w %d1,%d2
+        mulu.w 0x000001d0,%d2
+        add.w %d0,%d2
+        lsl.l #5,%d2
+        movea.l 0x000001d8,%a0
+        adda.l %d2,%a0
+        /* VDP pattern index = 1 + (y mod 28)*screenTW + (x mod screenTW). */
+        moveq #0,%d3
+        move.w %d1,%d3
+        divu.w #28,%d3
+        swap %d3
+        andi.l #0x0000ffff,%d3
+        mulu.w 0x000001d4,%d3
+        moveq #0,%d4
+        move.w %d0,%d4
+        divu.w 0x000001d4,%d4
+        swap %d4
+        andi.l #0x0000ffff,%d4
+        add.l %d4,%d3
+        addq.l #1,%d3
+        lsl.l #5,%d3
+        /* Encode VRAM write command from byte address D3. */
+        move.l %d3,%d4
+        andi.l #0x00003fff,%d4
+        swap %d4
+        move.l %d3,%d5
+        lsr.l #14,%d5
+        andi.l #3,%d5
+        or.l %d5,%d4
+        ori.l #0x40000000,%d4
+        move.l %d4,0x00c00004
+        move.w #15,%d6
+single_tile_words:
+        move.w (%a0)+,0x00c00000
+        dbra %d6,single_tile_words
+        rts
+
+/* Redraw only name-table references, not the 35 KB pattern buffer.
+ * Each destination screen tile points at its source coordinate's ring
+ * buffer slot and keeps its source CRAM palette selection.
+ */
+paint_map:
         moveq #0,%d0
         move.w 0x00ff0002,%d0
         mulu.w 0x000001d0,%d0
@@ -196,19 +296,42 @@ tile_words:
         move.w 0x000001d4,%d5
         subq.w #1,%d5
         move.w #27,%d3
-        moveq #1,%d4
-map_row:
+        /* Ring row and ring x origin, both reduced modulo dimensions. */
+        moveq #0,%d7
+        move.w 0x00ff0002,%d7
+        divu.w #28,%d7
+        swap %d7
+        andi.l #0x0000ffff,%d7
+        moveq #0,%d2
+        move.w 0x00ff0000,%d2
+        divu.w 0x000001d4,%d2
+        swap %d2
+        move.w %d2,0x00ff0004
+map_ring_row:
         move.l (%a2)+,0x00c00004
+        move.w %d7,%d1
+        mulu.w 0x000001d4,%d1
+        addq.w #1,%d1
+        move.w 0x00ff0004,%d2
         move.w %d5,%d0
-map_col:
-        move.w (%a1)+,%d1
-        or.w %d4,%d1
-        move.w %d1,0x00c00000
-        addq.w #1,%d4
-        dbra %d0,map_col
+map_ring_col:
+        move.w (%a1)+,%d4
+        add.w %d1,%d4
+        add.w %d2,%d4
+        move.w %d4,0x00c00000
+        addq.w #1,%d2
+        cmp.w 0x000001d4,%d2
+        blo map_no_x_wrap
+        clr.w %d2
+map_no_x_wrap:
+        dbra %d0,map_ring_col
         adda.w %d6,%a1
-        dbra %d3,map_row
-        move.w #0x8144,0x00c00004
+        addq.w #1,%d7
+        cmpi.w #28,%d7
+        blo map_no_y_wrap
+        clr.w %d7
+map_no_y_wrap:
+        dbra %d3,map_ring_row
         rts
 hang:
         bra hang
