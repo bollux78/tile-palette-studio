@@ -1,0 +1,10 @@
+{
+  "captured": true,
+  "initial_colors": 64,
+  "movements": {
+    "right": true,
+    "down": true,
+    "left": true,
+    "up": true
+  }
+}
