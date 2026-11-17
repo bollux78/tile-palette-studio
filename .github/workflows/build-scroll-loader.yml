@@ -1,0 +1,49 @@
+name: Build scroll ROM loader
+on:
+  push:
+    branches: [feature/scroll-rom]
+    paths: ['scroll_loader.S', '.github/workflows/build-scroll-loader.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: true}
+      - name: Install 68000 assembler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils-m68k-linux-gnu
+      - name: Compile and encode ROM loader
+        run: |
+          m68k-linux-gnu-as -m68000 -o /tmp/scroll_loader.o scroll_loader.S
+          m68k-linux-gnu-ld --no-warn-rwx-segments -Ttext=0x0 -o /tmp/scroll_loader.elf /tmp/scroll_loader.o
+          m68k-linux-gnu-objcopy -O binary /tmp/scroll_loader.elf /tmp/scroll_loader.bin
+          python - <<'PY'
+          from pathlib import Path
+          import base64
+          p=Path('/tmp/scroll_loader.bin')
+          binary=p.read_bytes()
+          assert binary[0:4]==bytes.fromhex('00ffff00')
+          assert binary[4:8]==bytes.fromhex('00000200')
+          assert 512<len(binary)<8192, f'Loader size {len(binary)} must fit in 8KB'
+          assert binary[0x100:0x104]==b'SEGA'
+          Path('scroll_loader.b64').write_text(base64.b64encode(binary).decode('ascii')+'\n')
+          print('Assembled loader:',len(binary),'bytes')
+          PY
+      - name: Commit loader as safe ASCII Base64
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scroll_loader.b64
+          if ! git diff --cached --quiet; then
+            git commit -m "Compile 68000 scroll loader template [skip ci]"
+            git push origin HEAD:feature/scroll-rom
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scroll-loader
+          path: /tmp/scroll_loader.bin
