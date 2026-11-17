@@ -1,7 +1,7 @@
 name: Test scroll ROM in BlastEm
 on:
   push:
-    branches: [fix/scroll-no-black-flash]
+    branches: [feature/vdp-hardware-scroll]
     paths:
       - scroll_loader.b64
       - scroll_rom.py
