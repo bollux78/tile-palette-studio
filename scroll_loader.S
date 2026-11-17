@@ -13,7 +13,7 @@
         .org 0x100
         .ascii "SEGA MEGA DRIVE "
         .org 0x110
-        .ascii "(C) AMINO 2026.NOV"
+        .ascii "(C) AMINO 2026"
         .org 0x120
         .ascii "TILE PALETTE STUDIO SCROLL ROM"
         .org 0x150
