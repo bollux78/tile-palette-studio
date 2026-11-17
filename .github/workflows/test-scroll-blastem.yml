@@ -1,7 +1,7 @@
 name: Test pixel-scroll ROM in BlastEm
 on:
   push:
-    branches: [feature/vdp-hardware-scroll]
+    branches: [fix/symmetric-vdp-scroll]
     paths:
       - scroll_loader.b64
       - scroll_rom.py
