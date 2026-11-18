@@ -80,3 +80,9 @@ As ROMs **estática e de rolagem** habilitam agora a interrupção vertical do V
 ### Cache de tiles da ROM com rolagem (correção para imagens grandes)
 
 O cache VRAM usa **46×32 padrões em H40** e **38×32 em H32**, com até duas colunas/linhas de margem atrás da câmera e margem à frente. A recarga de uma linha agora abrange a margem horizontal, e a recarga de uma coluna abrange a margem vertical, para evitar lacunas ao mudar o sentido do movimento numa imagem de 1024 pixels ou mais. São 1473 slots H40 incluindo tile zero reservado, dentro do limite de 1536 antes da tabela de nomes do plano A. Testes de propriedade verificam a correspondência entre cada posição visível, o name table e seu padrão VRAM após sequências longas e aleatórias de movimentos, inclusive ultrapassando os módulos 32/64 do VDP.
+
+## Preparação da imagem original
+
+O painel **Preparar imagem original** oferece brilho e contraste de 0 a 200% e nitidez de 0 a 300%. O valor neutro é 100%; nitidez abaixo desse valor suaviza a imagem. O recorte usa X, Y, largura e altura em pixels do arquivo original, sem aceitar áreas fora da imagem.
+
+Use **Prévia dos ajustes e recorte** para visualizar a preparação e **Quantizar imagem** para atualizar o resultado. O processamento parte sempre do arquivo original: recorte, brilho, contraste e nitidez, seguidos do redimensionamento e da quantização. Os ajustes valem para todas as exportações. **Restaurar original** remove os ajustes e o recorte. O canal alfa é preservado na preparação.
