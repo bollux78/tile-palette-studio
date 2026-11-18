@@ -83,6 +83,6 @@ O cache VRAM usa **46×32 padrões em H40** e **38×32 em H32**, com até duas c
 
 ## Preparação da imagem original
 
-O painel **Preparar imagem original** oferece brilho e contraste de 0 a 200% e nitidez de 0 a 300%. O valor neutro é 100%; nitidez abaixo desse valor suaviza a imagem. O recorte usa X, Y, largura e altura em pixels do arquivo original, sem aceitar áreas fora da imagem.
+O painel **Preparar imagem original** oferece brilho e contraste de 0 a 200% e nitidez de 0 a 300%. O valor neutro é 100%; nitidez abaixo desse valor suaviza a imagem. O botão **Recortar com o mouse** abre o original em uma janela: arraste com o mouse ou toque para selecionar uma área e clique em **Aplicar recorte**. A seleção respeita os limites do arquivo e pode ser refeita a qualquer momento. Os campos X, Y, largura e altura ficam em **Ajuste preciso em pixels (opcional)**. Os controles são distribuídos em duas colunas, com uma coluna em telas pequenas.
 
 Use **Prévia dos ajustes e recorte** para visualizar a preparação e **Quantizar imagem** para atualizar o resultado. O processamento parte sempre do arquivo original: recorte, brilho, contraste e nitidez, seguidos do redimensionamento e da quantização. Os ajustes valem para todas as exportações. **Restaurar original** remove os ajustes e o recorte. O canal alfa é preservado na preparação.

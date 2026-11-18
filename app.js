@@ -49,6 +49,28 @@ viewports.forEach(view=>{
 });
 $('strength').oninput=()=>$('strengthlabel').textContent=$('strength').value;
 $('iterations').oninput=()=>$('iterationslabel').textContent=$('iterations').value;
+let cropBitmap=null,cropSelection=null,cropStart=null,cropPointer=null;
+const cropCanvas=$('cropCanvas'),cropContext=cropCanvas.getContext('2d');
+function cropPoint(e){const r=cropCanvas.getBoundingClientRect();return {x:Math.max(0,Math.min(origW,Math.round((e.clientX-r.left)*origW/r.width))),y:Math.max(0,Math.min(origH,Math.round((e.clientY-r.top)*origH/r.height)))}}
+function drawCrop(){
+  cropContext.clearRect(0,0,cropCanvas.width,cropCanvas.height);
+  if(!cropBitmap)return;
+  cropContext.drawImage(cropBitmap,0,0,cropCanvas.width,cropCanvas.height);
+  const b=cropSelection,valid=b&&b[2]>b[0]&&b[3]>b[1];$('applyCrop').disabled=!valid;
+  $('cropInfo').textContent=valid?`Área selecionada: ${b[2]-b[0]} × ${b[3]-b[1]} pixels`:'Arraste para selecionar uma área.';
+  if(!valid)return;
+  const sx=cropCanvas.width/origW,sy=cropCanvas.height/origH,x=b[0]*sx,y=b[1]*sy,w=(b[2]-b[0])*sx,h=(b[3]-b[1])*sy;
+  cropContext.fillStyle='rgba(0,0,0,.55)';cropContext.beginPath();cropContext.rect(0,0,cropCanvas.width,cropCanvas.height);cropContext.rect(x,y,w,h);cropContext.fill('evenodd');
+  cropContext.strokeStyle='#fff';cropContext.lineWidth=2;cropContext.strokeRect(x,y,w,h);
+}
+$('openCrop').onclick=async()=>{if(!source||busy)return;try{cropBitmap?.close();cropBitmap=await createImageBitmap(new Blob([source]));const scale=Math.min(1,1200/origW,800/origH);cropCanvas.width=Math.max(1,Math.round(origW*scale));cropCanvas.height=Math.max(1,Math.round(origH*scale));cropStart=null;cropPointer=null;try{cropSelection=editOptions().crop}catch{cropSelection=null}drawCrop();$('cropDialog').showModal()}catch(e){status('Não foi possível abrir o recorte: '+e.message,'error')}};
+cropCanvas.onpointerdown=e=>{if(e.button!==0||cropPointer!==null)return;e.preventDefault();cropPointer=e.pointerId;cropStart=cropPoint(e);cropCanvas.setPointerCapture(e.pointerId);cropSelection=null;drawCrop()};
+cropCanvas.onpointermove=e=>{if(cropPointer!==e.pointerId||!cropStart)return;const p=cropPoint(e);cropSelection=[Math.min(cropStart.x,p.x),Math.min(cropStart.y,p.y),Math.max(cropStart.x,p.x),Math.max(cropStart.y,p.y)];drawCrop()};
+cropCanvas.onpointerup=e=>{if(cropPointer!==e.pointerId)return;cropCanvas.onpointermove(e);cropStart=null;cropPointer=null;if(cropCanvas.hasPointerCapture(e.pointerId))cropCanvas.releasePointerCapture(e.pointerId)};
+cropCanvas.onpointercancel=()=>{cropStart=null;cropPointer=null;cropSelection=null;drawCrop()};
+$('cancelCrop').onclick=()=>$('cropDialog').close();
+$('cropDialog').addEventListener('close',()=>{cropBitmap?.close();cropBitmap=null;cropStart=null;cropPointer=null});
+$('applyCrop').onclick=()=>{const b=cropSelection;if(!b||b[2]<=b[0]||b[3]<=b[1])return;$('cropx').value=b[0];$('cropy').value=b[1];$('cropw').value=b[2]-b[0];$('croph').value=b[3]-b[1];$('crop').checked=true;$('crop').onchange();$('cropDialog').close();if(py)$('previewEdits').onclick()};
 function editOptions(){
   const crop=$('crop').checked;
   const x=Number($('cropx').value),y=Number($('cropy').value),w=Number($('cropw').value),h=Number($('croph').value);
@@ -65,7 +87,7 @@ function setDims(w,h){adjusting=true;$('width').value=w;$('height').value=h;adju
 $('width').onchange=()=>{$('preset').value='original'};
 $('height').onchange=()=>{$('preset').value='original'};
 $('preset').onchange=()=>{if(!origW)return;const v=$('preset').value;if(v==='original'){const e=editOptions();setDims(e.crop?e.crop[2]-e.crop[0]:origW,e.crop?e.crop[3]-e.crop[1]:origH)}else {const [w,h]=v.split('x').map(Number);setDims(w,h)}};
-const enable=()=>{$('quant').disabled=!py||!source||busy;for(const id of ['export','png','rom'])$(id).disabled=!result||busy;$('resized').disabled=!source||!py||busy;$('previewEdits').disabled=!source||!py||busy;for(const id of ['brightness','contrast','sharpness','crop','cropx','cropy','cropw','croph','resetEdits'])$(id).disabled=busy};
+const enable=()=>{$('quant').disabled=!py||!source||busy;for(const id of ['export','png','rom'])$(id).disabled=!result||busy;$('resized').disabled=!source||!py||busy;$('previewEdits').disabled=!source||!py||busy;$('openCrop').disabled=!source||busy;for(const id of ['brightness','contrast','sharpness','crop','cropx','cropy','cropw','croph','resetEdits'])$(id).disabled=busy};
 async function loadFile(file,isExample=false){if(!file)return;const ext=(file.name.split('.').pop()||'').toLowerCase();if(!['png','bmp','gif','webp','jpg','jpeg','avif'].includes(ext)){status('Formato não suportado.','error');return}source=new Uint8Array(await file.arrayBuffer());sourceName=basename(file.name);result=false;$('memorial').hidden=!isExample;try{const bmp=await createImageBitmap(file);origW=bmp.width;origH=bmp.height;bmp.close();resetEdits();setDims(origW,origH);$('preset').value='original';$('fileinfo').textContent=`${file.name} · ${origW} × ${origH} · ${(file.size/1024).toFixed(1)} KiB`;const url=URL.createObjectURL(file);setImg('before',url);$('before').dataset.w=origW;$('before').dataset.h=origH;$('after').removeAttribute('src');$('after').dataset.w='';$('after').dataset.h='';applyZoom();status('Imagem carregada. Ajuste as opções e clique em Quantizar.');}catch(e){source=null;status('Não foi possível decodificar a imagem: '+e.message,'error')}enable()}
 $('file').onchange=e=>loadFile(e.target.files[0]);const drop=$('drop');drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};drop.ondragleave=()=>drop.classList.remove('over');drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');loadFile(e.dataTransfer.files[0])};
 async function loadExample(){try{const response=await fetch('cholirede.png?v=example-1',{cache:'no-store'});if(!response.ok)throw Error('imagem de exemplo não publicada');const blob=await response.blob();if(source)return;await loadFile(new File([blob],'cholirede.png',{type:'image/png'}),true);$('preset').value='320x224';setDims(320,224);$('fileinfo').textContent+=' · exemplo';}catch(e){console.info('Exemplo indisponível:',e.message)}}
