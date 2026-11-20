@@ -1,5 +1,5 @@
 """Mega Drive tile optimization: exact deduplication, free H/V flips, then optional
-palette-aware perceptual correlation and budget-limited lossy replacement.
+palette-aware global visual clustering and budget-limited lossy replacement.
 The approximation is original code inspired by OrionSoft's optimization workflow.
 """
 import numpy as np
@@ -10,7 +10,7 @@ def _flip(tile, bits):
     if bits & 0x1000: tile = tile[::-1, :]
     return tile
 
-def optimize(indices, tile_palettes, budget=None, allow_lossy=False, palettes_rgb=None):
+def optimize(indices, tile_palettes, budget=None, allow_lossy=False, palettes_rgb=None, reserve_zero=True):
     ty, tx = tile_palettes.shape
     if indices.shape != (ty*8, tx*8):
         raise ValueError('Dimensões de tiles e mapa incompatíveis')
@@ -47,54 +47,79 @@ def optimize(indices, tile_palettes, budget=None, allow_lossy=False, palettes_rg
             raise ValueError('Formato de paletas RGB inválido')
         mapping = np.asarray(mapping, dtype=np.int32)
         flips = np.asarray(flips, dtype=np.uint16)
-        counts = np.bincount(mapping, minlength=len(unique)).astype(np.int32)
-        # Exact deduplication across palettes is lossless. Approximation across
-        # differently colored palettes is permitted only when BOTH tile patterns
-        # are used under the same single palette, preventing mismatched colors.
+        counts = np.bincount(mapping, minlength=len(unique)).astype(np.float64)
         uses = [set() for _ in unique]
         for i, pal in zip(mapping, pids):
             uses[int(i)].add(int(pal))
         active = set(range(len(unique)))
-        weights = np.array([.299,.587,.114],dtype=np.float32)
-        # Precompute color-space tile representations for single-palette patterns.
-        visual = {}
-        for i in active:
+        # Merge the globally least costly pair, not the first infrequent tile.
+        # Cluster means retain ALL original samples, so successive merges never
+        # measure an already degraded replacement as though it were the source.
+        n = len(unique)
+        if n > 4096:
+            raise ValueError("A substituição visual aceita até 4096 tiles únicos por imagem. Reduza a resolução ou divida o mapa.")
+        zero_masks = np.asarray(unique) == 0
+        means = np.zeros((n,8,8,3), dtype=np.float64)
+        groups = np.full(n,-1,dtype=np.int16)
+        weights = np.array([.299,.587,.114],dtype=np.float64)
+        for i in range(n):
             if len(uses[i]) == 1:
-                p = next(iter(uses[i]))
-                visual[i] = palette[p][unique[i]].astype(np.float32)
-        while len(active) > budget:
-            selected = None
-            # Least-used patterns first to reduce visible impact.
-            for i in sorted(active, key=lambda k:(counts[k],k)):
-                if i not in visual:
-                    continue
-                candidates = [j for j in active if j != i and j in visual and uses[j] == uses[i]]
-                if not candidates:
-                    continue
-                # Frequency shortlist, then RGB-weighted comparison over all flips.
-                candidates.sort(key=lambda j:(-counts[j],j))
-                best = None
-                source = visual[i]
-                for j in candidates[:64]:
-                    for bits in FLIPS:
-                        diff = source - _flip(visual[j], bits)
-                        distance = float(np.sum(diff*diff*weights))
-                        score = (distance, -int(counts[j]), j, bits)
-                        if best is None or score < best[0]:
-                            best = (score,j,bits)
-                if best is not None:
-                    selected = (i,best[1],best[2])
-                    break
-            if selected is None:
-                break
-            i,j,bits = selected
-            affected = mapping == i
-            mapping[affected] = j
-            flips[affected] ^= bits
-            counts[j] += counts[i]
-            uses[j].update(uses[i])
-            active.remove(i)
-            merges += 1
+                groups[i] = next(iter(uses[i]))
+                means[i] = palette[groups[i]][unique[i]]
+        # Patterns shared across palettes stay exact: their visual meaning is
+        # different under each palette and cannot be averaged in one RGB space.
+        distances = np.full((n,n),np.inf,dtype=np.float64)
+        orientations = np.zeros((n,n),np.uint16)
+        def update_row(i, candidates):
+            candidates=np.asarray(candidates,dtype=np.intp)
+            if not len(candidates):return
+            best=np.full(len(candidates),np.inf)
+            flips_best=np.zeros(len(candidates),np.uint16)
+            for bits in FLIPS:
+                batch=means[candidates]
+                if bits&0x0800:batch=batch[:,:,::-1,:]
+                if bits&0x1000:batch=batch[:,::-1,:,:]
+                delta=means[i]-batch
+                error=np.sum(delta*delta*weights,axis=(1,2,3))
+                if reserve_zero:
+                    masks=zero_masks[candidates]
+                    if bits&0x0800:masks=masks[:,:,::-1]
+                    if bits&0x1000:masks=masks[:,::-1,:]
+                    error[np.any(masks!=zero_masks[i],axis=(1,2))]=np.inf
+                better=error<best
+                best[better]=error[better];flips_best[better]=bits
+            costs=best*counts[i]*counts[candidates]/(counts[i]+counts[candidates])
+            distances[i,candidates]=costs;distances[candidates,i]=costs
+            orientations[i,candidates]=flips_best;orientations[candidates,i]=flips_best
+        for i in range(n):
+            if groups[i]>=0:
+                update_row(i,np.flatnonzero((groups==groups[i])&(np.arange(n)>i)))
+        while len(active)>budget:
+            flat=int(np.argmin(distances))
+            i,j=divmod(flat,n)
+            if not np.isfinite(distances[i,j]):break
+            bits=int(orientations[i,j])
+            other=means[j]
+            if bits&0x0800:other=other[:,::-1,:]
+            if bits&0x1000:other=other[::-1,:,:]
+            means[i]=(means[i]*counts[i]+other*counts[j])/(counts[i]+counts[j])
+            counts[i]+=counts[j]
+            affected=mapping==j
+            mapping[affected]=i;flips[affected]^=bits
+            active.remove(j);merges+=1
+            distances[j,:]=np.inf;distances[:,j]=np.inf
+            candidates=[k for k in sorted(active) if k!=i and groups[k]==groups[i]]
+            update_row(i,candidates)
+            distances[i,i]=np.inf
+        # New representative patterns use only the existing hardware palette.
+        for i in active:
+            if groups[i]>=0:
+                colors=palette[groups[i]].astype(np.float64)
+                delta=means[i][:,:,None,:]-colors[None,None,:,:]
+                errors=np.sum(delta*delta*weights,axis=3)
+                if reserve_zero:errors[:,:,0]=np.inf
+                unique[i]=np.argmin(errors,axis=2).astype(np.uint8)
+                if reserve_zero:unique[i][zero_masks[i]]=0
         retained = sorted(active)
         reindex = {old:new for new,old in enumerate(retained)}
         unique = [unique[i] for i in retained]

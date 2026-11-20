@@ -98,3 +98,9 @@ O pacote ZIP contém tiles Mode 4 planares, mapa de atributos little-endian, 32 
 A ROM `.sms` de teste tem 32 KiB e usa 256 × 192 sem rolagem, inicializando o VDP e ocultando os sprites. Outros tamanhos são exportados como assets para integração no seu jogo. Os modos de 224/240 linhas requerem VDP SMS II e outro layout da VRAM; não são gerados pela ROM de teste.
 
 Referências técnicas: [documentação original Sega](https://www.smspower.org/Development/SMSOfficialDocs), [SMSlib](https://github.com/sverx/devkitSMS/blob/master/SMSlib/src/SMSlib.h).
+
+### Redução visual de tiles
+
+A substituição opcional agrupa globalmente os pares com menor aumento do erro visual, considerando frequência e espelhamentos. Cada grupo mantém a média dos tiles originais; o representante é reconstruído com as cores da paleta final. Padrões compartilhados entre paletas permanecem exatos. A transparência reservada é preservada; no SMS, índice zero opaco é permitido quando a reserva de alfa está desligada. A aproximação aceita até 4096 padrões únicos por imagem; para mapas maiores, divida em bancos ou reduza a resolução. O erro exibido inclui a redução visual.
+
+Regressão cholirede: 256×192, Lanczos, proporção preservada, duas paletas, 16 cores, vertical4 a 0,38, 10 iterações, 448 tiles. Erro RGB² introduzido pela redução: 1297,41 no método anterior, 462,93 no agrupamento global (64,3% menor), mantendo o mesmo orçamento.

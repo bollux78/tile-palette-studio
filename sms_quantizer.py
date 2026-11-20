@@ -402,7 +402,7 @@ def hardware_data(result):
     cfg=result.settings
     available=min(cfg.vram_budget_tiles,448-cfg.base_tile)
     opt=optimize(result.indices,result.tile_palettes,budget=available,
-                 allow_lossy=cfg.allow_lossy_tiles,palettes_rgb=result.palettes_rgb)
+                 allow_lossy=cfg.allow_lossy_tiles,palettes_rgb=result.palettes_rgb,reserve_zero=cfg.transparent)
     if not opt['fits_budget']:
         raise ValueError(f"{opt['unique_count']} tiles únicos excedem o orçamento de {available}. Ative a substituição de tiles similares, reduza a imagem ou aumente o orçamento.")
     tiles=opt['tiles']
