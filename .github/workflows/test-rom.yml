@@ -6,6 +6,9 @@ on:
       - 'tile_optimizer.py'
       - 'quantizer.py'
       - 'tests/**'
+      - 'sms_quantizer.py'
+      - 'sms_rom.py'
+      - 'master-system/**'
       - '.github/workflows/test-rom.yml'
   workflow_dispatch:
 jobs:

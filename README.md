@@ -86,3 +86,15 @@ O cache VRAM usa **46×32 padrões em H40** e **38×32 em H32**, com até duas c
 O painel **Preparar imagem original** oferece brilho e contraste de 0 a 200% e nitidez de 0 a 300%. O valor neutro é 100%; nitidez abaixo desse valor suaviza a imagem. O botão **Recortar com o mouse** abre o original em uma janela: arraste com o mouse ou toque para selecionar uma área e clique em **Aplicar recorte**. A seleção respeita os limites do arquivo e pode ser refeita a qualquer momento. Os campos X, Y, largura e altura ficam em **Ajuste preciso em pixels (opcional)**. Os controles são distribuídos em duas colunas, com uma coluna em telas pequenas.
 
 Use **Prévia dos ajustes e recorte** para visualizar a preparação e **Quantizar imagem** para atualizar o resultado. O processamento parte sempre do arquivo original: recorte, brilho, contraste e nitidez, seguidos do redimensionamento e da quantização. Os ajustes valem para todas as exportações. **Restaurar original** remove os ajustes e o recorte. O canal alfa é preservado na preparação.
+
+## Versão Master System
+
+Abra [Tile Palette Studio — Master System](https://bollux78.github.io/tile-palette-studio/master-system/). A versão Mega Drive continua no endereço principal.
+
+A versão SMS mantém brilho, contraste, nitidez, recorte com mouse, redimensionamento e dithering. O motor usa a grade RGB de 2 bits por canal (64 cores) e até duas paletas de 16 cores por tile. O índice 0 é uma cor normal no plano de fundo; ao reservar alfa, ele representa a cor configurada para áreas transparentes. Sprites usam apenas a segunda paleta e o índice 0 transparente, mas esta versão trabalha com imagens de fundo, sem modo sprite sheet.
+
+O pacote ZIP contém tiles Mode 4 planares, mapa de atributos little-endian, 32 bytes de CRAM (00BBGGRR), PNG, JSON, arrays C e exemplo SMSlib/devkitSMS. Os espelhamentos H/V são reutilizados sem perda. Há substituição opcional por tiles similares. O limite padrão de 448 tiles reserva o tilemap em 0x3800 e a tabela de sprites em 0x3F00; o tile inicial também consome esse espaço. Exportações acima do orçamento são rejeitadas para evitar mapas inválidos. Duas paletas no fundo ocupam também a paleta de sprites.
+
+A ROM `.sms` de teste tem 32 KiB e usa 256 × 192 sem rolagem, inicializando o VDP e ocultando os sprites. Outros tamanhos são exportados como assets para integração no seu jogo. Os modos de 224/240 linhas requerem VDP SMS II e outro layout da VRAM; não são gerados pela ROM de teste.
+
+Referências técnicas: [documentação original Sega](https://www.smspower.org/Development/SMSOfficialDocs), [SMSlib](https://github.com/sverx/devkitSMS/blob/master/SMSlib/src/SMSlib.h).
