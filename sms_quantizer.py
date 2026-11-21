@@ -479,7 +479,9 @@ O limite padrão de 448 tiles reserva VRAM a partir de 0x3800 para o tilemap.
 O orçamento e o tile inicial devem respeitar os recursos já usados pelo seu jogo.
 Imagens maiores são assets para seu motor, não cabem de uma só vez na tela.
 Transparência do PNG não é transparência do plano de fundo no hardware.
-A ROM de teste aceita apenas 256x192; não contém rolagem ou sprites.
+A ROM estática usa 256x192. A ROM com direcional mostra imagens maiores em uma área
+de 248x192 (faixa de 8 pixels à esquerda), até 4096 posições e 1024 px por eixo.
+Cada região deve caber no orçamento de tiles; os demais padrões ficam na ROM.
 '''
     write(prefix+'_COMO_USAR.txt',guide.encode())
     return files

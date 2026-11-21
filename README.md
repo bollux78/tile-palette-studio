@@ -95,7 +95,7 @@ A versão SMS mantém brilho, contraste, nitidez, recorte com mouse, redimension
 
 O pacote ZIP contém tiles Mode 4 planares, mapa de atributos little-endian, 32 bytes de CRAM (00BBGGRR), PNG, JSON, arrays C e exemplo SMSlib/devkitSMS. Os espelhamentos H/V são reutilizados sem perda. Há substituição opcional por tiles similares. O limite padrão de 448 tiles reserva o tilemap em 0x3800 e a tabela de sprites em 0x3F00; o tile inicial também consome esse espaço. Exportações acima do orçamento são rejeitadas para evitar mapas inválidos. Duas paletas no fundo ocupam também a paleta de sprites.
 
-A ROM `.sms` de teste tem 32 KiB e usa 256 × 192 sem rolagem, inicializando o VDP e ocultando os sprites. Outros tamanhos são exportados como assets para integração no seu jogo. Os modos de 224/240 linhas requerem VDP SMS II e outro layout da VRAM; não são gerados pela ROM de teste.
+A ROM `.sms` pode ser estática (256 × 192) ou usar rolagem pelo direcional para imagens maiores. O modo automático escolhe pela dimensão da imagem. A rolagem utiliza a tela padrão de 256 × 192 e máscara à esquerda de 8 pixels, com área útil de 248 × 192. Imagens de 224/240 linhas podem ser visualizadas por rolagem, sem exigir modos estendidos do VDP.
 
 Referências técnicas: [documentação original Sega](https://www.smspower.org/Development/SMSOfficialDocs), [SMSlib](https://github.com/sverx/devkitSMS/blob/master/SMSlib/src/SMSlib.h).
 
@@ -104,3 +104,15 @@ Referências técnicas: [documentação original Sega](https://www.smspower.org/
 A substituição opcional agrupa globalmente os pares com menor aumento do erro visual, considerando frequência e espelhamentos. Cada grupo mantém a média dos tiles originais; o representante é reconstruído com as cores da paleta final. Padrões compartilhados entre paletas permanecem exatos. A transparência reservada é preservada; no SMS, índice zero opaco é permitido quando a reserva de alfa está desligada. A aproximação aceita até 4096 padrões únicos por imagem; para mapas maiores, divida em bancos ou reduza a resolução. O erro exibido inclui a redução visual.
 
 Regressão cholirede: 256×192, Lanczos, proporção preservada, duas paletas, 16 cores, vertical4 a 0,38, 10 iterações, 448 tiles. Erro RGB² introduzido pela redução: 1297,41 no método anterior, 462,93 no agrupamento global (64,3% menor), mantendo o mesmo orçamento.
+
+### ROM de Master System com rolagem
+
+No seletor **Modo da ROM de teste**, use **Automático** ou **Rolagem pelo direcional**. O controle move a câmera nos dois eixos, em passos de até 2 pixels, com limites nas bordas. A imagem deve ter no mínimo 256 × 192, no máximo 1024 pixels por eixo e até 4096 posições de tiles (por exemplo, 512 × 512). O modo estático anterior continua disponível.
+
+Os padrões ficam na ROM com mapper Sega; a VRAM usa uma janela circular de 32 × 28 e um conjunto de trabalho de 32 × 25 tiles. Se os padrões únicos couberem no orçamento, ficam todos residentes, com atualização somente do tilemap. Caso contrário, o cache carrega e libera padrões conforme a câmera avança. São permitidos mais de 448 padrões na imagem inteira, desde que cada janela de trabalho caiba no orçamento (descontando o tile inicial). Teste: 600 padrões na ROM, pico de 400 na VRAM.
+
+A faixa de 8 pixels à esquerda permite carregar a próxima coluna fora da área visível, como é usual no Master. Nas travessias de tiles, a câmera alinha temporariamente para transferir dados fora da vista; imagens com muitas trocas de padrões podem apresentar pausas no movimento. Não é uma promessa de 60 quadros de movimento por segundo para qualquer imagem.
+
+Fotos com centenas de padrões diferentes na mesma janela ainda exigem redução por similares. Se essa opção estiver desligada, o gerador informa a região que excedeu o orçamento; não trunca índices nem substitui pixels silenciosamente. Quando autorizada, a redução usa as paletas existentes.
+
+O carregador é fornecido em `sms_scroll_loader.asm` e `sms_scroll_loader.b64`. A compilação com pyz80 é conferida na CI. Os testes executam a ROM com um núcleo Z80, emulam mapper/VRAM/CRAM, comparam pixels em milhares de posições e verificam também a imagem visível durante os uploads fora da tela.
