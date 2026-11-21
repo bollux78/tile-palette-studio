@@ -30,6 +30,7 @@ class Settings:
     seed: int = 42
     vram_budget_tiles: int = 448  # User-configurable estimate; actual VRAM usage is game-specific
     allow_lossy_tiles: bool = False
+    rom_border: str | None = None  # Reserve sprite-palette slot 15 when requested.
 
 
 @dataclass
@@ -293,6 +294,16 @@ def quantize(image: Image.Image, config: Settings,
     seed = np.random.default_rng(config.seed)
     assignments = _seed_groups(coarse, config.palettes, seed)
     zero_reserved = config.transparent  # Background color 0 is opaque in SMS Mode 4.
+    border = (np.clip(np.rint(_rgb_from_hex(config.rom_border).astype(np.float32)/85),0,3).astype(np.uint8)
+              if config.rom_border is not None else None)
+    def fit_current(histogram, palette_id):
+        # R7 chooses a color from the SECOND palette for the external border.
+        # Reserve slot 15 while fitting, so fixing the border never recolors an
+        # existing image entry behind the quantizer's back. Alpha slot 0 stays intact.
+        if palette_id==1 and config.colors==16 and border is not None:
+            fitted=_fit_palette(histogram,15,zero,seed,zero_reserved)
+            return np.concatenate([fitted,border[None,:]])
+        return _fit_palette(histogram,config.colors,zero,seed,zero_reserved)
     history: list[float] = []
     palettes = np.zeros((config.palettes, config.colors, 3), dtype=np.uint8)
     update(14, 'Otimizando paletas compartilhadas entre tiles…')
@@ -302,7 +313,7 @@ def quantize(image: Image.Image, config: Settings,
             h = hist[assignments == p].sum(axis=0)
             if not h.any():
                 h = hist.sum(axis=0)
-            palettes[p] = _fit_palette(h, config.colors, zero, seed, zero_reserved)
+            palettes[p] = fit_current(h,p)
         costs = np.empty((64, config.palettes), np.float32)
         for p in range(config.palettes):
             costs[:, p] = _distance(all_colors, palettes[p, 1 if zero_reserved else 0:]).min(axis=1)
@@ -322,7 +333,7 @@ def quantize(image: Image.Image, config: Settings,
         h = hist[assignments == p].sum(axis=0)
         if not h.any():
             h = hist.sum(axis=0)
-        palettes[p] = _fit_palette(h, config.colors, zero, seed, zero_reserved)
+        palettes[p] = fit_current(h,p)
     update(85, 'Aplicando cores finais e dithering…')
     pix_palette = assignments[tile_ids]
     rgbfloat = rgb.astype(np.float32)
@@ -396,6 +407,17 @@ def quantize(image: Image.Image, config: Settings,
 
 
 
+def cram_data(result):
+    cram=np.zeros((2,16),np.uint8)
+    for p in range(result.settings.palettes):
+        colors=np.rint(result.palettes_rgb[p].astype(float)/85).clip(0,3).astype(np.uint8)
+        cram[p,:result.settings.colors]=colors[:,0]|(colors[:,1]<<2)|(colors[:,2]<<4)
+    if result.settings.rom_border is not None:
+        r,g,b=np.rint(_rgb_from_hex(result.settings.rom_border).astype(float)/85).clip(0,3).astype(int)
+        cram[1,15]=int(r|(g<<2)|(b<<4))
+    return cram.tobytes()
+
+
 def hardware_data(result):
     """Encode Mode 4 bitplanes, 9-bit pattern indexes and 6-bit CRAM."""
     from tile_optimizer import optimize
@@ -412,11 +434,7 @@ def hardware_data(result):
     attrs=(opt['mapping'].astype(np.uint16)+cfg.base_tile
            | ((opt['flips']&0x0800)>>2) | ((opt['flips']&0x1000)>>2)
            | (result.tile_palettes.ravel().astype(np.uint16)<<11)).astype('<u2')
-    cram=np.zeros((2,16),np.uint8)
-    for p in range(cfg.palettes):
-        colors=np.rint(result.palettes_rgb[p]/85).astype(np.uint8)
-        cram[p,:cfg.colors]=colors[:,0]|(colors[:,1]<<2)|(colors[:,2]<<4)
-    return planes.tobytes(),attrs.tobytes(),cram.tobytes(),opt
+    return planes.tobytes(),attrs.tobytes(),cram_data(result),opt
 
 
 def export(result,destination,prefix='art'):
@@ -448,6 +466,7 @@ def export(result,destination,prefix='art'):
               'tiles':'8x8, 32 bytes, rows of 4 bitplanes, LSB plane first, left pixel bit 7',
               'map':'little-endian 16-bit: index 0-8, H flip 9, V flip 10, palette 11, priority 12=0',
               'cram':'32 bytes, 00BBGGRR, 2 palettes of 16 colors',
+              'border_color':result.settings.rom_border,'border_palette_index':31 if result.settings.rom_border is not None else 16,
               'alpha':'Background color 0 is opaque; optional source alpha maps to configured color 0.',
               'note':'Two palettes for backgrounds use the sprite palette too. Larger maps require game-side streaming. Extended screen modes require SMS II VDP and a different VRAM layout.'}
     write(prefix+'.json',(json.dumps(manifest,indent=2,ensure_ascii=False)+'\n').encode())

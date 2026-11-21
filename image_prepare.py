@@ -27,3 +27,46 @@ def prepare_image(image, options):
             rgb = enhancer(rgb).enhance(factor)
     rgb.putalpha(alpha)
     return rgb
+
+
+def resize_image(image, width, height, resample, keep_aspect=True,
+                 pixel_aspect=1.0, fit='contain', background='#000000', preserve_alpha=False):
+    """Resize for the DISPLAY pixel shape, rather than assuming square pixels.
+
+    pixel_aspect is displayed pixel width / height. The returned PNG remains a
+    native-resolution raster; displaying its width times PAR restores geometry.
+    'contain' preserves the whole source, 'cover' fills by cropping the excess.
+    """
+    from PIL import Image,ImageColor
+    if (type(width) is not int or type(height) is not int or not 1<=width<=8192
+            or not 1<=height<=8192 or width*height>16_000_000):
+        raise ValueError('Dimensões inválidas para redimensionamento.')
+    pixel_aspect=float(pixel_aspect)
+    if not math.isfinite(pixel_aspect) or not .25<=pixel_aspect<=4:
+        raise ValueError('Aspecto de pixel inválido.')
+    if fit not in ('contain','cover'):
+        raise ValueError('Ajuste ao quadro inválido.')
+    image=image.convert('RGBA')
+    if keep_aspect and fit=='cover':
+        # Crop the source rectangle before resizing. Extremely wide/tall inputs
+        # must not allocate an enormous intermediate just to crop it away.
+        ratio=width*pixel_aspect/height
+        if image.width/image.height>ratio:
+            cw=image.height*ratio
+            box=((image.width-cw)/2,0,(image.width+cw)/2,image.height)
+        else:
+            ch=image.width/ratio
+            box=(0,(image.height-ch)/2,image.width,(image.height+ch)/2)
+        fitted=image.resize((width,height),resample,box=box)
+    elif keep_aspect:
+        scale=min(width*pixel_aspect/image.width,height/image.height)
+        rw=min(width,max(1,round(image.width*scale/pixel_aspect)))
+        rh=min(height,max(1,round(image.height*scale)))
+        fitted=image.resize((rw,rh),resample)
+    else:fitted=image.resize((width,height),resample)
+    color=ImageColor.getrgb(background)
+    canvas=Image.new('RGBA',(width,height),(0,0,0,0) if preserve_alpha else (*color,255))
+    position=((width-fitted.width)//2,(height-fitted.height)//2)
+    if preserve_alpha:canvas.paste(fitted,position)
+    else:canvas.alpha_composite(fitted,position)
+    return canvas

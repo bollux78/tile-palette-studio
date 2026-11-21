@@ -116,3 +116,13 @@ A faixa de 8 pixels à esquerda permite carregar a próxima coluna fora da área
 Fotos com centenas de padrões diferentes na mesma janela ainda exigem redução por similares. Se essa opção estiver desligada, o gerador informa a região que excedeu o orçamento; não trunca índices nem substitui pixels silenciosamente. Quando autorizada, a redução usa as paletas existentes.
 
 O carregador é fornecido em `sms_scroll_loader.asm` e `sms_scroll_loader.b64`. A compilação com pyz80 é conferida na CI. Os testes executam a ROM com um núcleo Z80, emulam mapper/VRAM/CRAM, comparam pixels em milhares de posições e verificam também a imagem visível durante os uploads fora da tela.
+
+### Correção de aspecto e preenchimento
+
+Nas duas versões, ative **Corrigir aspecto para TV / emulador 4:3** antes de preparar/quantizar. O perfil **Quadro 4:3 com bordas · 240 linhas** considera o quadro de vídeo completo, inclusive bordas (referência útil para o BlastEm com enquadramento padrão). Em H40 de 320 pixels isso dá pixel 1:1; em H32 e Master System de 256 pixels, 1,25:1. Para emuladores que cortam as bordas e esticam somente a área ativa, escolha **Área ativa em 4:3**. Também existe PAR personalizado para outros enquadramentos. Estes perfis são alvos de exibição; não pretendem impor uma única proporção física para todo televisor ou emulador.
+
+A preparação compensa o formato dos pixels ANTES da quantização. A prévia mostra a largura com a mesma proporção da exibição escolhida; PNG, mapa e ROM conservam sua resolução nativa. Por isso o PNG preparado pode parecer estreito num visualizador de pixels quadrados: é a compensação que será desfeita na TV. O recorte com mouse continua usando coordenadas do arquivo original, sem deformação. A correção fica desligada inicialmente para preservar os fluxos anteriores.
+
+**Encaixar** mantém a imagem inteira, com faixas quando necessárias. **Preencher** ocupa o quadro e corta as sobras, mantendo a geometria após a exibição. A mesma função atende prévia, quantização e PNG redimensionado. Desligar Manter proporção desliga a correção, pois a operação passa a esticar livremente a imagem. Em mapas maiores, o aspecto considera a tela da ROM, não as dimensões do mapa inteiro.
+
+As faixas EXTERNAS do sinal de vídeo são independentes do encaixe e não desaparecem com a correção de aspecto. A ROM de Master System agora usa preto na borda, reservando a entrada 15 da segunda paleta quando ela estiver cheia, já durante a quantização. Isso evita usar uma cor clara arbitrária da imagem na borda e evita recolorir pixels depois da conversão. Exportações Python antigas preservam o comportamento anterior se `Settings.rom_border` não for especificado; a interface passa `#000000`.

@@ -34,6 +34,7 @@ NTILES: equ 0x3f08
 STATIC: equ 0x3f0a
 TILEBASE: equ 0x3f0b
 NSLOTS: equ 0x3f0d
+BORDER: equ 0x3f0f
 
  org 0
  jp boot
@@ -96,6 +97,11 @@ init_regs:
  inc hl
  inc c
  djnz init_regs
+ ; External border color is separate from arbitrary fitted image colors.
+ ld a,(BORDER)
+ out (0xbf),a
+ ld a,0x87
+ out (0xbf),a
  ; Hide all sprites.
  ld a,0
  out (0xbf),a

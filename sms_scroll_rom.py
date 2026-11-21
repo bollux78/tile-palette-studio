@@ -10,6 +10,7 @@ import struct
 from pathlib import Path
 import numpy as np
 from tile_optimizer import optimize
+from sms_quantizer import cram_data
 
 MAX_EDGE=1024
 MAX_MAP_TILES=4096
@@ -67,10 +68,7 @@ def build_scroll_rom(result):
     world[:,0]=opt['mapping']&255
     world[:,1]=opt['mapping']>>8
     world[:,2]=((opt['flips']&0x0800)>>10)|((opt['flips']&0x1000)>>10)|(result.tile_palettes.ravel()<<3)
-    cram=np.zeros((2,16),np.uint8)
-    for p in range(cfg.palettes):
-        rgb=np.rint(result.palettes_rgb[p].astype(float)/85).clip(0,3).astype(np.uint8)
-        cram[p,:cfg.colors]=rgb[:,0]|(rgb[:,1]<<2)|(rgb[:,2]<<4)
+    cram=cram_data(result)
     try:loader=base64.b64decode(Path(__file__).with_name('sms_scroll_loader.b64').read_text(),validate=False)
     except (OSError,ValueError) as exc:raise ValueError('Carregador Z80 de rolagem indisponível.') from exc
     if not 0x100<len(loader)<0x3e00 or loader[:3]!=bytes([0xc3,0x00,0x01]):
@@ -81,8 +79,9 @@ def build_scroll_rom(result):
     if size not in size_codes:raise ValueError('Imagem excede o limite da ROM de rolagem.')
     rom=bytearray([255])*size
     rom[:len(loader)]=loader
-    rom[0x3e00:0x3e20]=cram.tobytes()
+    rom[0x3e00:0x3e20]=cram
     struct.pack_into('<BBHHHHBHH',rom,PARAMETERS,tx,ty,width-248,height-192,tx*3,n,int(resident),cfg.base_tile,slots)
+    rom[0x3f0f]=15 if cfg.rom_border is not None else 0
     rom[0x4000:0x4000+world.size]=world.tobytes()
     rom[0x8000:0x8000+len(payload)]=payload
     rom[0x7ff0:0x8000]=b'TMR SEGA'+bytes([0,0,0,0,0,0,0,0x40|size_codes[size]])
